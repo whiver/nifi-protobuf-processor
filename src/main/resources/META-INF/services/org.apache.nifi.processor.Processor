@@ -1,1 +1,1 @@
-fr.whiver.nifi.processor.ProtobufDecoderProcessor
+com.github.whiver.nifi.processor.ProtobufDecoderProcessor
