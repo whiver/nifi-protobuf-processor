@@ -12,6 +12,10 @@ As this processor is a work-in-progress, the features already implemented and te
 - [ ] Allow to encode/decode from/to XML, JSON, YAML
 - [ ] Provides a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
 
+### Current limitations
+
+For now only the first message type is considered in the schema.
+
 ## Installation
 
 *Soon!*

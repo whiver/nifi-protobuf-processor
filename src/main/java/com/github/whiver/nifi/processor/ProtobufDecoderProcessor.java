@@ -1,6 +1,9 @@
 package com.github.whiver.nifi.processor;
 
+import com.github.whiver.nifi.mapper.JSONMapper;
 import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -22,6 +25,7 @@ import com.google.protobuf.DynamicMessage;
 import org.xml.sax.helpers.ParserFactory;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -36,6 +40,8 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
     private List<PropertyDescriptor> properties;
     private Set<Relationship> relationships;
 
+    // TODO Implement a processor-wide schema if none is specified in the flowfile
+    /*
     private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.schema")
             .required(true)
@@ -43,18 +49,19 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
             .expressionLanguageSupported(false)
             .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
             .build();
+    */
 
-    private static final Relationship SUCCESS = new Relationship.Builder()
+    public static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Success relationship")
             .build();
 
-    private static final Relationship INVALID_SCHEMA = new Relationship.Builder()
+    public static final Relationship INVALID_SCHEMA = new Relationship.Builder()
             .name("Invalid schema")
             .description("Relationship used in case of invalid Protocol Buffer schema.")
             .build();
 
-    private static final Relationship ERROR = new Relationship.Builder()
+    public static final Relationship ERROR = new Relationship.Builder()
             .name("error")
             .description("Error relationship")
             .build();
@@ -62,7 +69,6 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
     @Override
     public void init(final ProcessorInitializationContext context){
         List<PropertyDescriptor> properties = new ArrayList<>();
-        properties.add(PROTOBUF_SCHEMA);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -74,7 +80,6 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
-        final AtomicReference<String> value = new AtomicReference<>();
         final AtomicReference<Relationship> error = new AtomicReference<>();
 
         final FlowFile flowfile = session.get();
@@ -84,8 +89,9 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
         // To write the results back out ot flow file
         FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
             FileDescriptorProto descriptorProto = FileDescriptorProto.parseFrom(new ByteArrayInputStream(protobufSchema.getBytes(StandardCharsets.UTF_8.name())));
+            FileDescriptor descriptor;
             try {
-                FileDescriptor.buildFrom(descriptorProto, null);
+                descriptor = FileDescriptor.buildFrom(descriptorProto, null);
             } catch (DescriptorValidationException e) {
                 getLogger().error(e.getMessage());
                 e.printStackTrace();
@@ -93,30 +99,27 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
                 return;
             }
 
-            /*// Init the parser
-            ParserFactory parserFactory = new ParserFactory();
+            List<Descriptor> descriptorList = descriptor.getMessageTypes();
+
+            if (descriptorList.isEmpty()) {
+                getLogger().error("Empty schema: you must specify exactly one message type in the .proto file.");
+                error.set(INVALID_SCHEMA);
+                return;
+            } else if (descriptorList.size() > 1) {
+                getLogger().warn("More than one message type is contained in the schema: only the first one will be considered.");
+            }
+
             try {
-                PropertyValue productIdProperty = processContext.getProperty(PRODUCT_ID);
-                int productId = productIdProperty.isSet()
-                        ? Byte.parseByte(productIdProperty.getValue())
-                        : parserFactory.parseProductId(bitInputStream.get());
-
-                getLogger().info("Instantiating parser for product ID '" + productId + "'");
-                AbstractParser parser = parserFactory.getParser(productId, getLogger());
-                String json = parser.toJson(deviceId, topic, bitInputStream.get());
-                getLogger().info("Parsed values for product ID '" + productId + "': " + json);
-                value.set(json);
-            } catch (UnknownProductIdException e) {
-                getLogger().error(e.getMessage());
-                error[0] = 1;
-                return;
-            } catch (Exception e) {
-                getLogger().error(e.getMessage());
-                error[0] = 2;
-                return;
-            }*/
-
-            out.write(value.get().getBytes());
+                DynamicMessage message = DynamicMessage.parseFrom(descriptorList.get(0), in);
+                String decodedData = JSONMapper.toJSON(message);
+                out.write(decodedData.getBytes());
+            } catch (InvalidProtocolBufferException e) {
+                getLogger().error("Unable to encode message into JSON: " + e.getMessage());
+                error.set(ERROR);
+            } catch (IOException e) {
+                getLogger().error("Unable to decode data: " + e.getMessage());
+                error.set(ERROR);
+            }
         });
 
         if (error.get() != null) {
