@@ -1,34 +1,23 @@
 package com.github.whiver.nifi.processor;
 
 import com.github.whiver.nifi.mapper.JSONMapper;
-import com.google.protobuf.DescriptorProtos;
-import com.google.protobuf.Descriptors;
+import com.github.whiver.nifi.parser.SchemaParser;
+import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
+import com.google.protobuf.Descriptors.Descriptor;
+import com.google.protobuf.Descriptors.DescriptorValidationException;
+import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
-import org.apache.nifi.components.PropertyValue;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.util.StandardValidators;
 
-import com.google.protobuf.DescriptorProtos.FileDescriptorProto;
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
-import com.google.protobuf.Descriptors.Descriptor;
-import com.google.protobuf.Descriptors.DescriptorValidationException;
-import com.google.protobuf.Descriptors.EnumDescriptor;
-import com.google.protobuf.Descriptors.EnumValueDescriptor;
-import com.google.protobuf.Descriptors.FileDescriptor;
-import com.google.protobuf.DynamicMessage;
-import org.xml.sax.helpers.ParserFactory;
-
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -51,17 +40,17 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
             .build();
     */
 
-    public static final Relationship SUCCESS = new Relationship.Builder()
+    static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
             .description("Success relationship")
             .build();
 
-    public static final Relationship INVALID_SCHEMA = new Relationship.Builder()
+    static final Relationship INVALID_SCHEMA = new Relationship.Builder()
             .name("Invalid schema")
             .description("Relationship used in case of invalid Protocol Buffer schema.")
             .build();
 
-    public static final Relationship ERROR = new Relationship.Builder()
+    static final Relationship ERROR = new Relationship.Builder()
             .name("error")
             .description("Error relationship")
             .build();
@@ -84,48 +73,49 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
 
         final FlowFile flowfile = session.get();
 
-        String protobufSchema = flowfile.getAttribute("protobuf.schema");
+        String protobufSchema = flowfile.getAttribute("protobuf.schemaPath");
+        String messageType = flowfile.getAttribute("protobuf.messageType");
 
-        // To write the results back out ot flow file
-        FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
-            FileDescriptorProto descriptorProto = FileDescriptorProto.parseFrom(new ByteArrayInputStream(protobufSchema.getBytes(StandardCharsets.UTF_8.name())));
-            FileDescriptor descriptor;
-            try {
-                descriptor = FileDescriptor.buildFrom(descriptorProto, null);
-            } catch (DescriptorValidationException e) {
-                getLogger().error(e.getMessage());
-                e.printStackTrace();
-                error.set(ERROR);
-                return;
-            }
-
-            List<Descriptor> descriptorList = descriptor.getMessageTypes();
-
-            if (descriptorList.isEmpty()) {
-                getLogger().error("Empty schema: you must specify exactly one message type in the .proto file.");
-                error.set(INVALID_SCHEMA);
-                return;
-            } else if (descriptorList.size() > 1) {
-                getLogger().warn("More than one message type is contained in the schema: only the first one will be considered.");
-            }
-
-            try {
-                DynamicMessage message = DynamicMessage.parseFrom(descriptorList.get(0), in);
-                String decodedData = JSONMapper.toJSON(message);
-                out.write(decodedData.getBytes());
-            } catch (InvalidProtocolBufferException e) {
-                getLogger().error("Unable to encode message into JSON: " + e.getMessage());
-                error.set(ERROR);
-            } catch (IOException e) {
-                getLogger().error("Unable to decode data: " + e.getMessage());
-                error.set(ERROR);
-            }
-        });
-
-        if (error.get() != null) {
-            session.transfer(flowfile, error.get());
+        if (protobufSchema == null) {
+            getLogger().error("No schema path given, please fill in the protobuf.schemaPath property.");
+            session.transfer(flowfile, INVALID_SCHEMA);
+        } else if (messageType == null) {
+            getLogger().error("Unable to find the message type in protobuf.messageType, unable to decode data.");
+            session.transfer(flowfile, ERROR);
         } else {
-            session.transfer(outputFlowfile, SUCCESS);
+
+            // To write the results back out ot flow file
+            FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
+                FileDescriptorSet fileDescriptor;
+                try {
+                    fileDescriptor = SchemaParser.parseProto(protobufSchema);
+                } catch (IOException e) {
+                    getLogger().error("Unable to read schema file: " + e.getMessage());
+                    e.printStackTrace();
+                    error.set(ERROR);
+                    return;
+                }
+
+                Descriptor descriptor = fileDescriptor.getDescriptorForType();
+
+                try {
+                    DynamicMessage message = DynamicMessage.parseFrom(descriptor, in);
+                    String decodedData = JSONMapper.toJSON(message);
+                    out.write(decodedData.getBytes());
+                } catch (InvalidProtocolBufferException e) {
+                    getLogger().error("Unable to encode message into JSON: " + e.getMessage());
+                    error.set(ERROR);
+                } catch (IOException e) {
+                    getLogger().error("Unable to decode data: " + e.getMessage());
+                    error.set(ERROR);
+                }
+            });
+
+            if (error.get() != null) {
+                session.transfer(flowfile, error.get());
+            } else {
+                session.transfer(outputFlowfile, SUCCESS);
+            }
         }
     }
 
