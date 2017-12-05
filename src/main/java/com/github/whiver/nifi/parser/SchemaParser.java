@@ -1,13 +1,14 @@
 package com.github.whiver.nifi.parser;
 
-import com.google.protobuf.DescriptorProtos;
+import com.github.os72.protobuf.dynamic.DynamicSchema;
+import com.google.protobuf.Descriptors;
 
 import java.io.FileInputStream;
 import java.io.IOException;
 
 public class SchemaParser {
-    public static DescriptorProtos.FileDescriptorSet parseProto (String protoPath) throws IOException {
-        FileInputStream inputStream = new FileInputStream(protoPath);
-        return DescriptorProtos.FileDescriptorSet.parseFrom(inputStream);
+    public static Descriptors.Descriptor parseProto (String protoPath, String messageType) throws IOException, Descriptors.DescriptorValidationException {
+        FileInputStream schemaFile = new FileInputStream(protoPath);
+        return DynamicSchema.parseFrom(schemaFile).getMessageDescriptor(messageType);
     }
 }

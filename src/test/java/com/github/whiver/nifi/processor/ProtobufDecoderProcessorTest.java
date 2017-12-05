@@ -1,5 +1,7 @@
 package com.github.whiver.nifi.processor;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -10,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -36,14 +39,19 @@ public class ProtobufDecoderProcessorTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        // First were processed without failure
+        // Check if the data was processed without failure
         List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoderProcessor.SUCCESS);
         assertEquals("1 flowfile should be returned to success", 1, results.size());
 
-        System.out.println(results.get(0).toString());
-        // Second were processed with "unknown product ID"
-        //results = runner.getFlowFilesForRelationship(ProtobufDecoderProcessor.INVALID_SCHEMA);
-        //assertEquals("A unique flowfile should be returned to unknown", 1, results.size());
+        // Check if the content of the flowfile is as expected
+        ObjectMapper mapper = new ObjectMapper();
+
+        JsonNode expectedBasicPerson = mapper.readTree(this.getClass().getResourceAsStream("/data/Person_basic.json"));
+        JsonNode givenBasicPerson = mapper.readTree(runner.getContentAsByteArray(results.get(0)));
+        System.out.println(givenBasicPerson.toString());
+
+        assertTrue("The parsing result of Person_basic.data is not as expected", expectedBasicPerson.equals(givenBasicPerson));
+
     }
 
 }

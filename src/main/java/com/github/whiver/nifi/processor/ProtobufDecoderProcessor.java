@@ -1,7 +1,9 @@
 package com.github.whiver.nifi.processor;
 
+import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.mapper.JSONMapper;
 import com.github.whiver.nifi.parser.SchemaParser;
+import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
@@ -86,27 +88,36 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
 
             // To write the results back out ot flow file
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
-                FileDescriptorSet fileDescriptor;
+                Descriptor descriptor;
                 try {
-                    fileDescriptor = SchemaParser.parseProto(protobufSchema);
+                    descriptor = SchemaParser.parseProto(protobufSchema, messageType);
                 } catch (IOException e) {
                     getLogger().error("Unable to read schema file: " + e.getMessage());
                     e.printStackTrace();
                     error.set(ERROR);
                     return;
+                } catch (DescriptorValidationException e) {
+                    getLogger().error("Invalid schema file: " + e.getMessage());
+                    e.printStackTrace();
+                    error.set(ERROR);
+                    return;
                 }
 
-                Descriptor descriptor = fileDescriptor.getDescriptorForType();
+                if (descriptor == null) {
+                    getLogger().error("No message type '" + messageType + "' found in the schema file " + protobufSchema);
+                    error.set(INVALID_SCHEMA);
+                    return;
+                }
 
                 try {
                     DynamicMessage message = DynamicMessage.parseFrom(descriptor, in);
                     String decodedData = JSONMapper.toJSON(message);
                     out.write(decodedData.getBytes());
                 } catch (InvalidProtocolBufferException e) {
-                    getLogger().error("Unable to encode message into JSON: " + e.getMessage());
+                    getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
                     error.set(ERROR);
                 } catch (IOException e) {
-                    getLogger().error("Unable to decode data: " + e.getMessage());
+                    getLogger().error("Unable to decode data: " + e.getMessage(), e);
                     error.set(ERROR);
                 }
             });
