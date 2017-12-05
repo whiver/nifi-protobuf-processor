@@ -23,11 +23,11 @@ public class ProtobufDecoderProcessorTest {
     public void onTrigger() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoderProcessor());
 
-        // Basic Person test
-        InputStream basicTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/Person_basic.data");
+        // Basic AddressBook test
+        InputStream basicTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/AddressBook_basic.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.schemaPath", ProtobufDecoderProcessorTest.class.getResource("/schemas/PersonSchema.desc").getPath());
-        personProperties.put("protobuf.messageType", "Person");
+        personProperties.put("protobuf.schemaPath", ProtobufDecoderProcessorTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        personProperties.put("protobuf.messageType", "AddressBook");
 
         // Ensure the configuration is valid as-is
         runner.assertValid();
@@ -46,11 +46,10 @@ public class ProtobufDecoderProcessorTest {
         // Check if the content of the flowfile is as expected
         ObjectMapper mapper = new ObjectMapper();
 
-        JsonNode expectedBasicPerson = mapper.readTree(this.getClass().getResourceAsStream("/data/Person_basic.json"));
+        JsonNode expectedBasicPerson = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
         JsonNode givenBasicPerson = mapper.readTree(runner.getContentAsByteArray(results.get(0)));
-        System.out.println(givenBasicPerson.toString());
 
-        assertTrue("The parsing result of Person_basic.data is not as expected", expectedBasicPerson.equals(givenBasicPerson));
+        assertTrue("The parsing result of AddressBook_basic.data is not as expected", expectedBasicPerson.equals(givenBasicPerson));
 
     }
 

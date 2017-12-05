@@ -9,6 +9,7 @@ import java.io.IOException;
 public class SchemaParser {
     public static Descriptors.Descriptor parseProto (String protoPath, String messageType) throws IOException, Descriptors.DescriptorValidationException {
         FileInputStream schemaFile = new FileInputStream(protoPath);
-        return DynamicSchema.parseFrom(schemaFile).getMessageDescriptor(messageType);
+        DynamicSchema schema = DynamicSchema.parseFrom(schemaFile);
+        return schema.getMessageDescriptor(messageType);
     }
 }
