@@ -8,12 +8,12 @@ As this processor is a work-in-progress, the features already implemented and te
 ### Main functionalities
 - [x] Graphical configuration interface in Apache NiFi
 - [ ] Encode a raw payload to Protocol Buffers
-- [ ] Decode a Protocol Buffers payload to JSON
+- [x] Decode a Protocol Buffers payload to JSON
 - [ ] Support dependencies in proto files
 - [ ] Allow to encode/decode from/to XML, JSON, YAML
 
 ### Protobuf schema specification
-- [ ] Support compiled schema at a specified user location on the disk
+- [x] Support compiled schema at a specified user location on the disk
 - [ ] Support compiled schema embedded in the flowfile
 - [ ] Support embedding raw .proto files in the flowfile
 
@@ -31,3 +31,18 @@ Clone this project and build the processor `nar` file using Maven:
     mvn nifi-nar:nar
     
 Then simply copy the generated `nar` file into the Apache NiFi `lib` folder.
+
+
+## Usage
+
+See the installation section to learn how to integrate this processor in Apache NiFi.
+This projects add 2 different new processors in NiFi:
+
+- `ProtobufDecoderProcessor`, which **decodes** a Protobuf-encoded payload to different kind of structured formats ;
+- `ProtobufEncoderProcessor`, which **encodes** a payload in a structured format using a Protobuf schema.
+
+These processors both expect the incoming flowfiles to have the `protobuf.schemaPath` defined, which should contain the
+path to the compiled `.desc` proto file to use to decode/encode the data.
+
+For now, the only structured format the processors can process is the JSON. In the future, there should be more formats
+available (XML and YAML are expected).

@@ -1,10 +1,7 @@
 package com.github.whiver.nifi.processor;
 
-import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.mapper.JSONMapper;
 import com.github.whiver.nifi.parser.SchemaParser;
-import com.google.protobuf.DescriptorProtos;
-import com.google.protobuf.DescriptorProtos.FileDescriptorSet;
 import com.google.protobuf.Descriptors.Descriptor;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.DynamicMessage;
