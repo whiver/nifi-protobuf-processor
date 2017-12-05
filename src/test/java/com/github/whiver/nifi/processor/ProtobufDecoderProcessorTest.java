@@ -5,14 +5,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 
 /**
@@ -23,33 +21,39 @@ public class ProtobufDecoderProcessorTest {
     public void onTrigger() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoderProcessor());
 
-        // Basic AddressBook test
+        // AddressBook test
         InputStream basicTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/AddressBook_basic.data");
-        HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.schemaPath", ProtobufDecoderProcessorTest.class.getResource("/schemas/AddressBook.desc").getPath());
-        personProperties.put("protobuf.messageType", "AddressBook");
+        InputStream severalEntriesTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/AddressBook_several.data");
+        HashMap<String, String> adressBookProperties = new HashMap<>();
+        adressBookProperties.put("protobuf.schemaPath", ProtobufDecoderProcessorTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        adressBookProperties.put("protobuf.messageType", "AddressBook");
 
         // Ensure the configuration is valid as-is
         runner.assertValid();
 
         // Enqueue the flowfile
-        runner.enqueue(basicTestEncrypted, personProperties);
+        runner.enqueue(basicTestEncrypted, adressBookProperties);
+        runner.enqueue(severalEntriesTestEncrypted, adressBookProperties);
 
         // Run the enqueued content, it also takes an int = number of contents queued
-        runner.run(1);
+        runner.run(2);
         runner.assertQueueEmpty();
 
         // Check if the data was processed without failure
         List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoderProcessor.SUCCESS);
-        assertEquals("1 flowfile should be returned to success", 1, results.size());
+        Assert.assertEquals("2 flowfiles should be returned to success", 2, results.size());
 
         // Check if the content of the flowfile is as expected
         ObjectMapper mapper = new ObjectMapper();
 
-        JsonNode expectedBasicPerson = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
-        JsonNode givenBasicPerson = mapper.readTree(runner.getContentAsByteArray(results.get(0)));
+        JsonNode expectedBasicTest = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
+        JsonNode givenBasicTest = mapper.readTree(runner.getContentAsByteArray(results.get(0)));
 
-        assertTrue("The parsing result of AddressBook_basic.data is not as expected", expectedBasicPerson.equals(givenBasicPerson));
+        JsonNode expectedSeveralEntriesTest = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_several.json"));
+        JsonNode givenSeveralEntriesTestTest = mapper.readTree(runner.getContentAsByteArray(results.get(1)));
+
+        Assert.assertEquals("The parsing result of AddressBook_basic.data is not as expected", expectedBasicTest, givenBasicTest);
+        Assert.assertEquals("The parsing result of AddressBook_several.data is not as expected", expectedSeveralEntriesTest, givenSeveralEntriesTestTest);
 
     }
 
