@@ -22,6 +22,15 @@ As this processor is a work-in-progress, the features already implemented and te
 
 ## Installation
 
+### Using Docker
+A pre-packaged version of NiFi with the processor installed is
+[available on Docker Hub](https://hub.docker.com/r/whiver/nifi-protobuf/). To run it just type:
+
+    docker run -p 8080:8080 whiver/nifi-protobuf:latest
+
+Note that the `-p` option publishes the port 8080 used by NiFi to the host, so that you can access the UI directly *via*
+`http://localhost:8080/nifi`.
+
 ### Using a stable release
 Grab the latest release directly from the releases page and copy the `.nar` file in the Apache NiFi `lib` folder.
 
@@ -46,3 +55,11 @@ path to the compiled `.desc` proto file to use to decode/encode the data.
 
 For now, the only structured format the processors can process is the JSON. In the future, there should be more formats
 available (XML and flowfile properties are expected).
+
+## Contributing
+
+This project is Free as in Freedom, so feel free to contribute by posting bug report or pull requests!
+
+## License
+
+This project is licensed under the MIT license. The terms of this license can be found in the [LICENSE file](LICENSE).

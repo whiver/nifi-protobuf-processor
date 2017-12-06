@@ -20,7 +20,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <nifi.version>1.3.0</nifi.version>
+        <nifi.version>1.4.0</nifi.version>
     </properties>
 
     <dependencies>
@@ -105,6 +105,29 @@
                         <format>xml</format>
                     </formats>
                     <check />
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>com.spotify</groupId>
+                <artifactId>dockerfile-maven-plugin</artifactId>
+                <version>1.3.6</version>
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>push</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <repository>whiver/nifi-protobuf</repository>
+                    <tag>${project.version}</tag>
+                    <tag>latest</tag>
+                    <buildArgs>
+                        <NIFI_VERSION>${nifi.version}</NIFI_VERSION>
+                        <PROCESSOR_VERSION>${project.version}</PROCESSOR_VERSION>
+                    </buildArgs>
                 </configuration>
             </plugin>
         </plugins>
