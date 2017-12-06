@@ -10,7 +10,7 @@ As this processor is a work-in-progress, the features already implemented and te
 - [ ] Encode a raw payload to Protocol Buffers
 - [x] Decode a Protocol Buffers payload to JSON
 - [ ] Support dependencies in proto files
-- [ ] Allow to encode/decode from/to XML, JSON, YAML
+- [ ] Allow to encode/decode from/to XML, JSON and flowfile properties
 
 ### Protobuf schema specification
 - [x] Support compiled schema at a specified user location on the disk
@@ -45,4 +45,4 @@ These processors both expect the incoming flowfiles to have the `protobuf.schema
 path to the compiled `.desc` proto file to use to decode/encode the data.
 
 For now, the only structured format the processors can process is the JSON. In the future, there should be more formats
-available (XML and YAML are expected).
+available (XML and flowfile properties are expected).
