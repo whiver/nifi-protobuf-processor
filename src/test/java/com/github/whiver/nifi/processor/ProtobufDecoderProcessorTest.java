@@ -17,44 +17,50 @@ import java.util.List;
  * A test class mocking a NiFi flow
  */
 public class ProtobufDecoderProcessorTest {
+    /**
+     * List the files used to test the decoder. Only list the file names without extension, as the .data file will be
+     * used as Protobuf encoded data and the .json file will be used as the reference decoded result.
+     * Note that every files will be encoded against the AddressBook schema.
+     */
+    private final String[] validTestFiles = {
+            "AddressBook_basic", "AddressBook_several"
+    };
+
     @Test
     public void onTrigger() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoderProcessor());
 
         // AddressBook test
-        InputStream basicTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/AddressBook_basic.data");
-        InputStream severalEntriesTestEncrypted = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/AddressBook_several.data");
         HashMap<String, String> adressBookProperties = new HashMap<>();
         adressBookProperties.put("protobuf.schemaPath", ProtobufDecoderProcessorTest.class.getResource("/schemas/AddressBook.desc").getPath());
         adressBookProperties.put("protobuf.messageType", "AddressBook");
 
+        // AddressBook test
+        for (String filename: validTestFiles) {
+            InputStream jsonFile = ProtobufDecoderProcessorTest.class.getResourceAsStream("/data/" + filename + ".data");
+            adressBookProperties.put("testfile", filename);
+            runner.enqueue(jsonFile, adressBookProperties);
+        }
+
         // Ensure the configuration is valid as-is
         runner.assertValid();
 
-        // Enqueue the flowfile
-        runner.enqueue(basicTestEncrypted, adressBookProperties);
-        runner.enqueue(severalEntriesTestEncrypted, adressBookProperties);
-
         // Run the enqueued content, it also takes an int = number of contents queued
-        runner.run(2);
+        runner.run(validTestFiles.length);
         runner.assertQueueEmpty();
 
         // Check if the data was processed without failure
         List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoderProcessor.SUCCESS);
-        Assert.assertEquals("2 flowfiles should be returned to success", 2, results.size());
+        Assert.assertEquals("All flowfiles should be returned to success", validTestFiles.length, results.size());
 
         // Check if the content of the flowfile is as expected
         ObjectMapper mapper = new ObjectMapper();
 
-        JsonNode expectedBasicTest = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
-        JsonNode givenBasicTest = mapper.readTree(runner.getContentAsByteArray(results.get(0)));
-
-        JsonNode expectedSeveralEntriesTest = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_several.json"));
-        JsonNode givenSeveralEntriesTestTest = mapper.readTree(runner.getContentAsByteArray(results.get(1)));
-
-        Assert.assertEquals("The parsing result of AddressBook_basic.data is not as expected", expectedBasicTest, givenBasicTest);
-        Assert.assertEquals("The parsing result of AddressBook_several.data is not as expected", expectedSeveralEntriesTest, givenSeveralEntriesTestTest);
-
+        for (MockFlowFile result: results) {
+            JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/" + result.getAttribute("testfile") + ".json"));
+            JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+            Assert.assertEquals("The parsing result of " + result.getAttribute("testfile") + ".data is not as expected", expected, given);
+        }
     }
 
 }
