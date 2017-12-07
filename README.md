@@ -37,10 +37,18 @@ Grab the latest release directly from the releases page and copy the `.nar` file
 ### Building the latest version
 Clone this project and build the processor `nar` file using Maven:
 
+    mvn compile
     mvn nifi-nar:nar
     
 Then simply copy the generated `nar` file into the Apache NiFi `lib` folder.
 
+#### Building the Docker image
+
+The project also includes a Dockerfile to easily build a Docker image of the project. In fact you just need to run:
+
+    mvn package
+    
+and everything should be fine ! :)
 
 ## Usage
 
