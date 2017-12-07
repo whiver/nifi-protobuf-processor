@@ -3,6 +3,7 @@ sudo: false # faster builds
 services:
 - docker
 
+install: true
 script: "mvn cobertura:cobertura"
 
 after_success:
