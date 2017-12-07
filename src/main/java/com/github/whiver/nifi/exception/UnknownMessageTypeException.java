@@ -4,4 +4,8 @@ public class UnknownMessageTypeException extends Exception {
     public UnknownMessageTypeException(String messageType, String pathToSchema) {
         super("No message type '" + messageType + "' found in the schema file " + pathToSchema);
     }
+
+    public UnknownMessageTypeException(String messageType) {
+        super("No message type '" + messageType + "' found in the schema file.");
+    }
 }

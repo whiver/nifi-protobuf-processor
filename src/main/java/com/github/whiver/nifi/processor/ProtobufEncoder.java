@@ -1,16 +1,10 @@
 package com.github.whiver.nifi.processor;
 
 
-import com.github.whiver.nifi.exception.MessageEncodingException;
+import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
-import com.github.whiver.nifi.exception.UnknownMessageTypeException;
-import com.github.whiver.nifi.mapper.JSONMapper;
-import com.github.whiver.nifi.parser.SchemaParser;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors;
-import com.google.protobuf.DynamicMessage;
-import com.google.protobuf.InvalidProtocolBufferException;
-import com.google.protobuf.Message;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -18,6 +12,7 @@ import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
+import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.*;
 import java.util.*;
@@ -27,19 +22,30 @@ import java.util.concurrent.atomic.AtomicReference;
 @Tags({"Protobuf", "decoder", "Google Protocol Buffer"})
 @CapabilityDescription("Decode incoming data encoded using a Google Protocol Buffer Schema.")
 public class ProtobufEncoder extends AbstractProcessor {
+    /**
+     * NiFi properties of the processor, that can be configured using the Web UI
+     */
     private List<PropertyDescriptor> properties;
+
+    /**
+     * The different relationships of the processor
+     */
     private Set<Relationship> relationships;
 
-    // TODO Implement a processor-wide schema if none is specified in the flowfile
-    /*
+    /**
+     * The compiled descriptor used to parse incoming binaries in case where the schema has been specified in the
+     * processor level (protobuf.schema property)
+     */
+    private DynamicSchema schema;
+
     private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
-            .name("protobuf.schema")
-            .required(true)
-            .description("Protocol Buffer schema used to decode and encode data.")
+            .name("protobuf.schemaPath")
+            .required(false)
+            .description("Path to the Protocol Buffers schema to use for decoding the data. If set, this schema will " +
+                    "be used when the flowfile protobuf.schemaPath is missing.")
             .expressionLanguageSupported(false)
-            .addValidator(StandardValidators.NON_EMPTY_VALIDATOR)
+            .addValidator(StandardValidators.createURLorFileValidator())
             .build();
-    */
 
     static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
@@ -59,6 +65,7 @@ public class ProtobufEncoder extends AbstractProcessor {
     @Override
     public void init(final ProcessorInitializationContext context){
         List<PropertyDescriptor> properties = new ArrayList<>();
+        properties.add(PROTOBUF_SCHEMA);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -74,11 +81,11 @@ public class ProtobufEncoder extends AbstractProcessor {
 
         final FlowFile flowfile = session.get();
 
-        String protobufSchema = flowfile.getAttribute("protobuf.schemaPath");
+        String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         String messageType = flowfile.getAttribute("protobuf.messageType");
 
-        if (protobufSchema == null) {
-            getLogger().error("No schema path given, please fill in the protobuf.schemaPath property.");
+        if (protobufSchema == null && this.schema == null) {
+            getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() + " property.");
             session.transfer(flowfile, INVALID_SCHEMA);
         } else if (messageType == null) {
             getLogger().error("Unable to find the message type in protobuf.messageType, unable to decode data.");
@@ -88,7 +95,11 @@ public class ProtobufEncoder extends AbstractProcessor {
             // To write the results back out ot flow file
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
-                    ProtobufService.encodeProtobuf(protobufSchema, messageType, in, out);
+                    if (protobufSchema == null) {
+                        ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+                    } else {
+                        ProtobufService.encodeProtobuf(protobufSchema, messageType, in, out);
+                    }
                 } catch (Descriptors.DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
@@ -117,5 +128,44 @@ public class ProtobufEncoder extends AbstractProcessor {
     @Override
     public List<PropertyDescriptor> getSupportedPropertyDescriptors(){
         return properties;
+    }
+
+    /**
+     * Compile the given schema file when the protobuf.schema property is given
+     * @see AbstractProcessor
+     */
+    @Override
+    public void onPropertyModified(PropertyDescriptor descriptor, String oldValue, String newValue) {
+        super.onPropertyModified(descriptor, oldValue, newValue);
+
+        if (descriptor != PROTOBUF_SCHEMA) return;
+
+        // If the property is unset, just delete the existing descriptor
+        if (newValue == null || newValue.isEmpty()) {
+            this.schema = null;
+            return;
+        }
+
+        if (!newValue.equals(oldValue)) {
+            // First drop the old schema
+            this.schema = null;
+
+            // Compile the new schema
+            FileInputStream schemaFile;
+            try {
+                schemaFile = new FileInputStream(newValue);
+            } catch (FileNotFoundException e) {
+                getLogger().error("File " + newValue + " not found on the disk.", e);
+                return;
+            }
+
+            try {
+                this.schema = DynamicSchema.parseFrom(schemaFile);
+            } catch (Descriptors.DescriptorValidationException e) {
+                getLogger().error("Invalid schema file: " + e.getMessage(), e);
+            } catch (IOException e) {
+                getLogger().error("Unable to read file: " + e.getMessage(), e);
+            }
+        }
     }
 }
