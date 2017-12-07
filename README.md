@@ -47,11 +47,14 @@ Then simply copy the generated `nar` file into the Apache NiFi `lib` folder.
 See the installation section to learn how to integrate this processor in Apache NiFi.
 This projects add 2 different new processors in NiFi:
 
-- `ProtobufDecoderProcessor`, which **decodes** a Protobuf-encoded payload to different kind of structured formats ;
-- `ProtobufEncoderProcessor`, which **encodes** a payload in a structured format using a Protobuf schema.
+- `ProtobufDecoder`, which **decodes** a Protobuf-encoded payload to different kind of structured formats ;
+- `ProtobufEncoder`, which **encodes** a payload in a structured format using a Protobuf schema.
 
 These processors both expect the incoming flowfiles to have the `protobuf.schemaPath` defined, which should contain the
-path to the compiled `.desc` proto file to use to decode/encode the data.
+path to the **compiled** `.desc` proto file to use to decode/encode the data.
+
+> *Note*: if you don't have a compiled `.desc` file yet, you should
+> [take a look at `protoc`](https://github.com/google/protobuf/releases), the Protobuf compiler from Google. 
 
 For now, the only structured format the processors can process is the JSON. In the future, there should be more formats
 available (XML and flowfile properties are expected).

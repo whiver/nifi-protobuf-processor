@@ -1,5 +1,7 @@
 package com.github.whiver.nifi.processor;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -10,27 +12,32 @@ import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 
-public class ProtobufEncoderProcessorTest {
+
+/**
+ * A test class mocking a NiFi flow
+ */
+public class ProtobufDecoderTest {
     /**
-     * List the files used to test the encoder. Only list the file names without extension, as the .data file will be
-     * used as a reference and the .json file will be used as a source file.
+     * List the files used to test the decoder. Only list the file names without extension, as the .data file will be
+     * used as Protobuf encoded data and the .json file will be used as the reference decoded result.
      * Note that every files will be encoded against the AddressBook schema.
      */
     private final String[] validTestFiles = {
-        "AddressBook_basic", "AddressBook_several"
+            "AddressBook_basic", "AddressBook_several"
     };
 
     @Test
     public void onTrigger() throws Exception {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoderProcessor());
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
 
+        // AddressBook test
         HashMap<String, String> adressBookProperties = new HashMap<>();
-        adressBookProperties.put("protobuf.schemaPath", ProtobufEncoderProcessorTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        adressBookProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
         adressBookProperties.put("protobuf.messageType", "AddressBook");
 
         // AddressBook test
         for (String filename: validTestFiles) {
-            InputStream jsonFile = ProtobufEncoderProcessorTest.class.getResourceAsStream("/data/" + filename + ".json");
+            InputStream jsonFile = ProtobufDecoderTest.class.getResourceAsStream("/data/" + filename + ".data");
             adressBookProperties.put("testfile", filename);
             runner.enqueue(jsonFile, adressBookProperties);
         }
@@ -43,14 +50,17 @@ public class ProtobufEncoderProcessorTest {
         runner.assertQueueEmpty();
 
         // Check if the data was processed without failure
-        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoderProcessor.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS);
         Assert.assertEquals("All flowfiles should be returned to success", validTestFiles.length, results.size());
 
         // Check if the content of the flowfile is as expected
-        for (MockFlowFile result: results) {
-            result.assertContentEquals(ProtobufEncoderProcessorTest.class.getResourceAsStream("/data/" + result.getAttribute("testfile") + ".data"));
-        }
+        ObjectMapper mapper = new ObjectMapper();
 
+        for (MockFlowFile result: results) {
+            JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/" + result.getAttribute("testfile") + ".json"));
+            JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+            Assert.assertEquals("The parsing result of " + result.getAttribute("testfile") + ".data is not as expected", expected, given);
+        }
     }
 
 }

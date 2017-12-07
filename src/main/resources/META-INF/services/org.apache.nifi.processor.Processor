@@ -1,2 +1,2 @@
-com.github.whiver.nifi.processor.ProtobufDecoderProcessor
-com.github.whiver.nifi.processor.ProtobufEncoderProcessor
+com.github.whiver.nifi.processor.ProtobufDecoder
+com.github.whiver.nifi.processor.ProtobufEncoder

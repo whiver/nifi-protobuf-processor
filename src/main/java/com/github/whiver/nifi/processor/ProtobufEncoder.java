@@ -1,11 +1,16 @@
 package com.github.whiver.nifi.processor;
 
+
+import com.github.whiver.nifi.exception.MessageEncodingException;
+import com.github.whiver.nifi.exception.SchemaLoadingException;
+import com.github.whiver.nifi.exception.UnknownMessageTypeException;
 import com.github.whiver.nifi.mapper.JSONMapper;
 import com.github.whiver.nifi.parser.SchemaParser;
-import com.google.protobuf.Descriptors.Descriptor;
-import com.google.protobuf.Descriptors.DescriptorValidationException;
+import com.github.whiver.nifi.service.ProtobufService;
+import com.google.protobuf.Descriptors;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
+import com.google.protobuf.Message;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
@@ -14,17 +19,14 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.*;
 import org.apache.nifi.processor.exception.ProcessException;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-
 
 @SideEffectFree
 @Tags({"Protobuf", "decoder", "Google Protocol Buffer"})
 @CapabilityDescription("Decode incoming data encoded using a Google Protocol Buffer Schema.")
-public class ProtobufDecoderProcessor extends AbstractProcessor {
+public class ProtobufEncoder extends AbstractProcessor {
     private List<PropertyDescriptor> properties;
     private Set<Relationship> relationships;
 
@@ -85,35 +87,16 @@ public class ProtobufDecoderProcessor extends AbstractProcessor {
 
             // To write the results back out ot flow file
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
-                Descriptor descriptor;
                 try {
-                    descriptor = SchemaParser.parseProto(protobufSchema, messageType);
-                } catch (IOException e) {
-                    getLogger().error("Unable to read schema file: " + e.getMessage());
-                    e.printStackTrace();
-                    error.set(ERROR);
-                    return;
-                } catch (DescriptorValidationException e) {
-                    getLogger().error("Invalid schema file: " + e.getMessage());
-                    e.printStackTrace();
-                    error.set(ERROR);
-                    return;
-                }
-
-                if (descriptor == null) {
-                    getLogger().error("No message type '" + messageType + "' found in the schema file " + protobufSchema);
+                    ProtobufService.encodeProtobuf(protobufSchema, messageType, in, out);
+                } catch (Descriptors.DescriptorValidationException e) {
+                    getLogger().error("Invalid schema file: " + e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
-                    return;
-                }
-
-                try {
-                    DynamicMessage message = DynamicMessage.parseFrom(descriptor, in);
-                    out.write(JSONMapper.toJSON(message).getBytes());
-                } catch (InvalidProtocolBufferException e) {
-                    getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
-                    error.set(ERROR);
-                } catch (IOException e) {
-                    getLogger().error("Unable to decode data: " + e.getMessage(), e);
+                } catch (SchemaLoadingException e) {
+                    getLogger().error(e.getMessage(), e);
+                    error.set(INVALID_SCHEMA);
+                } catch (Exception e) {
+                    getLogger().error(e.getMessage(), e);
                     error.set(ERROR);
                 }
             });
