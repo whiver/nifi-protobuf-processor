@@ -53,6 +53,10 @@ This projects add 2 different new processors in NiFi:
 These processors both expect the incoming flowfiles to have the `protobuf.schemaPath` defined, which should contain the
 path to the **compiled** `.desc` proto file to use to decode/encode the data.
 
+> **Important**: The processor allows you to import **only one schema file**, so you need to package all you dependencies
+> into one file. To do so, compile your main `.proto` file using the `--include_imports` option of the `protoc` compiler.
+
+
 > *Note*: if you don't have a compiled `.desc` file yet, you should
 > [take a look at `protoc`](https://github.com/google/protobuf/releases), the Protobuf compiler from Google. 
 
