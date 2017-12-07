@@ -1,5 +1,7 @@
 language: java
 sudo: false # faster builds
+services:
+- docker
 
 script: "mvn cobertura:cobertura"
 
