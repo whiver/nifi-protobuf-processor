@@ -2,6 +2,7 @@ package com.github.whiver.nifi.processor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -11,6 +12,7 @@ import org.junit.Test;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 
 /**
@@ -31,15 +33,15 @@ public class ProtobufDecoderTest {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
 
         // AddressBook test
-        HashMap<String, String> adressBookProperties = new HashMap<>();
-        adressBookProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
-        adressBookProperties.put("protobuf.messageType", "AddressBook");
+        HashMap<String, String> addressBookProperties = new HashMap<>();
+        addressBookProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        addressBookProperties.put("protobuf.messageType", "AddressBook");
 
         // AddressBook test
         for (String filename: validTestFiles) {
             InputStream jsonFile = ProtobufDecoderTest.class.getResourceAsStream("/data/" + filename + ".data");
-            adressBookProperties.put("testfile", filename);
-            runner.enqueue(jsonFile, adressBookProperties);
+            addressBookProperties.put("testfile", filename);
+            runner.enqueue(jsonFile, addressBookProperties);
         }
 
         // Ensure the configuration is valid as-is
@@ -63,4 +65,76 @@ public class ProtobufDecoderTest {
         }
     }
 
+    @Test
+    public void onPropertyModified() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+
+        HashMap<String, String> addressBookProperties = new HashMap<>();
+        addressBookProperties.put("protobuf.messageType", "AddressBook");
+
+
+        /*
+            First try to decode using a schema set in a processor property
+         */
+
+        runner.setProperty("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.assertValid();
+
+        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+
+        runner.run(1);
+
+        // Check if the flowfile has been successfully processed
+        runner.assertQueueEmpty();
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+
+        // Finally check the content
+        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
+        JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The parsing result of AddressBook_basic.data is not as expected", expected, given);
+
+
+        /*
+            Then try to remove the schema from the processor property and see if it still parse
+         */
+
+        runner.clearTransferState();
+        runner.removeProperty(runner.getProcessor().getPropertyDescriptor("protobuf.schemaPath"));
+        Assert.assertFalse("The schema property should now be null", runner.getProcessContext().getProperty("protobuf.schemaPath").isSet());
+        runner.assertValid();
+
+        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+
+        runner.run(1);
+
+        // Check if the flowfile has been successfully processed
+        runner.assertQueueEmpty();
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.INVALID_SCHEMA);
+
+
+        /*
+            Finally add the property again to see if it works again
+         */
+
+        runner.clearTransferState();
+        runner.setProperty("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.assertValid();
+
+        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+
+        runner.run(1);
+
+        // Check if the flowfile has been successfully processed
+        runner.assertQueueEmpty();
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+
+        // Finally check the content
+        result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        expected = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
+        given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The parsing result of AddressBook_basic.data is not as expected", expected, given);
+
+    }
 }

@@ -44,6 +44,7 @@ public class ProtobufDecoder extends AbstractProcessor {
 
     private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.schemaPath")
+            .displayName("Schema path")
             .required(false)
             .description("Path to the Protocol Buffers schema to use for decoding the data. If set, this schema will " +
                     "be used when the flowfile protobuf.schemaPath is missing.")

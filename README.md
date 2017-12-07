@@ -7,9 +7,9 @@ As this processor is a work-in-progress, the features already implemented and te
 
 ### Main functionalities
 - [x] Graphical configuration interface in Apache NiFi
-- [x] Encode a raw payload to Protocol Buffers
+- [x] Encode a JSON payload to Protocol Buffers
 - [x] Decode a Protocol Buffers payload to JSON
-- [ ] Support dependencies in proto files
+- [x] Support dependencies in proto files (see [below](#usage))
 - [ ] Allow to encode/decode from/to XML, JSON and flowfile properties
 
 ### Protobuf schema specification
