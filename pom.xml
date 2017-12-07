@@ -113,22 +113,49 @@
                 <version>1.3.6</version>
                 <executions>
                     <execution>
-                        <id>default</id>
+                        <id>build</id>
                         <goals>
                             <goal>build</goal>
+                        </goals>
+                        <configuration>
+                            <repository>whiver/nifi-protobuf</repository>
+                            <buildArgs>
+                                <NIFI_VERSION>${nifi.version}</NIFI_VERSION>
+                                <PROCESSOR_VERSION>${project.version}</PROCESSOR_VERSION>
+                            </buildArgs>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>tag</id>
+                        <goals>
+                            <goal>tag</goal>
+                        </goals>
+                        <configuration>
+                            <repository>whiver/nifi-protobuf</repository>
+                            <tag>${project.version}</tag>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>push</id>
+                        <goals>
                             <goal>push</goal>
                         </goals>
+                        <configuration>
+                            <repository>whiver/nifi-protobuf</repository>
+                            <tag>${project.version}</tag>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>push-latest</id>
+                        <goals>
+                            <goal>push</goal>
+                        </goals>
+                        <configuration>
+                            <repository>whiver/nifi-protobuf</repository>
+                            <tag>latest</tag>
+                        </configuration>
                     </execution>
                 </executions>
-                <configuration>
-                    <repository>whiver/nifi-protobuf</repository>
-                    <tag>${project.version}</tag>
-                    <tag>latest</tag>
-                    <buildArgs>
-                        <NIFI_VERSION>${nifi.version}</NIFI_VERSION>
-                        <PROCESSOR_VERSION>${project.version}</PROCESSOR_VERSION>
-                    </buildArgs>
-                </configuration>
             </plugin>
         </plugins>
     </build>

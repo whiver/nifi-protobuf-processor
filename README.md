@@ -18,7 +18,7 @@ As this processor is a work-in-progress, the features already implemented and te
 - [ ] Support embedding raw .proto files in the flowfile
 
 ### Processor packaging
-- [ ] Provides a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
+- [x] Provide a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
 
 ## Installation
 
