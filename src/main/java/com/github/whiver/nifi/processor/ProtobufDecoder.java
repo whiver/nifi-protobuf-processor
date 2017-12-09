@@ -2,6 +2,7 @@ package com.github.whiver.nifi.processor;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.MessageDecodingException;
+import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
 import com.github.whiver.nifi.exception.UnknownMessageTypeException;
 import com.github.whiver.nifi.service.ProtobufService;
@@ -42,6 +43,8 @@ public class ProtobufDecoder extends AbstractProcessor {
     private DynamicSchema schema;
 
 
+    /*          PROPERTIES          */
+
     private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.schemaPath")
             .displayName("Schema path")
@@ -51,6 +54,20 @@ public class ProtobufDecoder extends AbstractProcessor {
             .expressionLanguageSupported(false)
             .addValidator(StandardValidators.createURLorFileValidator())
             .build();
+
+    private static final PropertyDescriptor COMPILE_SCHEMA = new PropertyDescriptor.Builder()
+            .name("protobuf.compileSchema")
+            .displayName("Compile schema")
+            .required(true)
+            .defaultValue("false")
+            .description("Set this property to true if the given schema file must be compiled using protoc before " +
+                    "decoding the data. It is useful if the given schema file is in .proto format. Try to always use " +
+                    "precompiled .desc schema whenever possible, since it is more performant.")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
+
+
+    /*          RELATIONSHIPS           */
 
     static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
@@ -71,6 +88,7 @@ public class ProtobufDecoder extends AbstractProcessor {
     public void init(final ProcessorInitializationContext context){
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(PROTOBUF_SCHEMA);
+        properties.add(COMPILE_SCHEMA);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -87,6 +105,7 @@ public class ProtobufDecoder extends AbstractProcessor {
         final FlowFile flowfile = session.get();
 
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
+        boolean compileSchema = Boolean.parseBoolean(flowfile.getAttribute(COMPILE_SCHEMA.getName()));
         String messageType = flowfile.getAttribute("protobuf.messageType");
 
         if (protobufSchema == null && this.schema == null) {
@@ -101,14 +120,14 @@ public class ProtobufDecoder extends AbstractProcessor {
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
                     if (protobufSchema == null) {
-                        out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in).getBytes());
+                        out.write(ProtobufService.decodeProtobuf(this.schema, compileSchema, messageType, in).getBytes());
                     } else {
-                        out.write(ProtobufService.decodeProtobuf(protobufSchema, messageType, in).getBytes());
+                        out.write(ProtobufService.decodeProtobuf(protobufSchema, compileSchema, messageType, in).getBytes());
                     }
                 } catch (DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
-                } catch (SchemaLoadingException e) {
+                } catch (SchemaLoadingException | SchemaCompilationException e) {
                     getLogger().error(e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
                 } catch (UnknownMessageTypeException | MessageDecodingException e) {
@@ -117,6 +136,8 @@ public class ProtobufDecoder extends AbstractProcessor {
                 } catch (InvalidProtocolBufferException e) {
                     getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
                     error.set(ERROR);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
                 }
             });
 

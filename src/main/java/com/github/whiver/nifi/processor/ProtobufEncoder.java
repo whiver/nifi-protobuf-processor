@@ -2,6 +2,7 @@ package com.github.whiver.nifi.processor;
 
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
+import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors;
@@ -38,6 +39,9 @@ public class ProtobufEncoder extends AbstractProcessor {
      */
     private DynamicSchema schema;
 
+
+    /*          PROPERTIES          */
+
     private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.schemaPath")
             .displayName("Schema path")
@@ -47,6 +51,20 @@ public class ProtobufEncoder extends AbstractProcessor {
             .expressionLanguageSupported(false)
             .addValidator(StandardValidators.createURLorFileValidator())
             .build();
+
+    private static final PropertyDescriptor COMPILE_SCHEMA = new PropertyDescriptor.Builder()
+            .name("protobuf.compileSchema")
+            .displayName("Compile schema")
+            .required(true)
+            .defaultValue("false")
+            .description("Set this property to true if the given schema file must be compiled using protoc before " +
+                    "encoding the data. It is useful if the given schema file is in .proto format. Try to always use " +
+                    "precompiled .desc schema whenever possible, since it is more performant.")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .build();
+
+
+    /*          RELATIONSHIPS           */
 
     static final Relationship SUCCESS = new Relationship.Builder()
             .name("Success")
@@ -64,9 +82,10 @@ public class ProtobufEncoder extends AbstractProcessor {
             .build();
 
     @Override
-    public void init(final ProcessorInitializationContext context){
+    public void init(final ProcessorInitializationContext context) {
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(PROTOBUF_SCHEMA);
+        properties.add(COMPILE_SCHEMA);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -83,7 +102,9 @@ public class ProtobufEncoder extends AbstractProcessor {
         final FlowFile flowfile = session.get();
 
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
+        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");
+
 
         if (protobufSchema == null && this.schema == null) {
             getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() + " property.");
@@ -97,16 +118,19 @@ public class ProtobufEncoder extends AbstractProcessor {
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
                     if (protobufSchema == null) {
-                        ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+                        ProtobufService.encodeProtobuf(this.schema, compileSchema, messageType, in, out);
                     } else {
-                        ProtobufService.encodeProtobuf(protobufSchema, messageType, in, out);
+                        ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
                     }
                 } catch (Descriptors.DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
-                } catch (SchemaLoadingException e) {
+                } catch (SchemaLoadingException | SchemaCompilationException e) {
                     getLogger().error(e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
+                } catch (InterruptedException e) {
+                    getLogger().error("Unable to compile schema: " + e.getMessage(), e);
+                    error.set(ERROR);
                 } catch (Exception e) {
                     getLogger().error(e.getMessage(), e);
                     error.set(ERROR);
@@ -122,17 +146,18 @@ public class ProtobufEncoder extends AbstractProcessor {
     }
 
     @Override
-    public Set<Relationship> getRelationships(){
+    public Set<Relationship> getRelationships() {
         return relationships;
     }
 
     @Override
-    public List<PropertyDescriptor> getSupportedPropertyDescriptors(){
+    public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         return properties;
     }
 
     /**
      * Compile the given schema file when the protobuf.schema property is given
+     *
      * @see AbstractProcessor
      */
     @Override
