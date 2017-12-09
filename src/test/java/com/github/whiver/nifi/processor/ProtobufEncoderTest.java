@@ -1,7 +1,5 @@
 package com.github.whiver.nifi.processor;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -13,17 +11,11 @@ import java.util.HashMap;
 import java.util.List;
 
 public class ProtobufEncoderTest {
-    /**
-     * List the files used to test the encoder. Only list the file names without extension, as the .data file will be
-     * used as a reference and the .json file will be used as a source file.
-     * Note that every files will be encoded against the AddressBook schema.
-     */
-    private final String[] validTestFiles = {
-        "AddressBook_basic", "AddressBook_several"
-    };
 
     @Test
     public void onTrigger() throws Exception {
+        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
+
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
 
         HashMap<String, String> adressBookProperties = new HashMap<>();
@@ -53,6 +45,23 @@ public class ProtobufEncoderTest {
             result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/" + result.getAttribute("testfile") + ".data"));
         }
 
+        // Change schema to a .proto file
+        runner.clearTransferState();
+        runner.setProperty("protobuf.compileSchema", "true");
+        InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(jsonFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
+        results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
     }
 
     @Test

@@ -2,7 +2,6 @@ package com.github.whiver.nifi.processor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -12,24 +11,16 @@ import org.junit.Test;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 
 /**
  * A test class mocking a NiFi flow
  */
 public class ProtobufDecoderTest {
-    /**
-     * List the files used to test the decoder. Only list the file names without extension, as the .data file will be
-     * used as Protobuf encoded data and the .json file will be used as the reference decoded result.
-     * Note that every files will be encoded against the AddressBook schema.
-     */
-    private final String[] validTestFiles = {
-            "AddressBook_basic", "AddressBook_several"
-    };
 
     @Test
     public void onTrigger() throws Exception {
+        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
 
         // AddressBook test
@@ -63,6 +54,26 @@ public class ProtobufDecoderTest {
             JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
             Assert.assertEquals("The parsing result of " + result.getAttribute("testfile") + ".data is not as expected", expected, given);
         }
+
+        // Change schema to a .proto file
+        runner.clearTransferState();
+        runner.setProperty("protobuf.compileSchema", "true");
+        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(dataFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+
+        JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
+        JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The parsing result of Person.data is not as expected", expected, given);
     }
 
     @Test

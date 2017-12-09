@@ -105,7 +105,7 @@ public class ProtobufDecoder extends AbstractProcessor {
         final FlowFile flowfile = session.get();
 
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
-        boolean compileSchema = Boolean.parseBoolean(flowfile.getAttribute(COMPILE_SCHEMA.getName()));
+        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");
 
         if (protobufSchema == null && this.schema == null) {

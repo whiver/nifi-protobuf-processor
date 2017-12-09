@@ -15,7 +15,7 @@ As this processor is a work-in-progress, the features already implemented and te
 ### Protobuf schema specification
 - [x] Support compiled schema at a specified user location on the disk
 - [ ] Support compiled schema embedded in the flowfile
-- [ ] Support embedding raw .proto files in the flowfile
+- [x] Support embedding raw .proto files in the flowfile
 
 ### Processor packaging
 - [x] Provide a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
@@ -58,12 +58,21 @@ This projects add 2 different new processors in NiFi:
 - `ProtobufDecoder`, which **decodes** a Protobuf-encoded payload to different kind of structured formats ;
 - `ProtobufEncoder`, which **encodes** a payload in a structured format using a Protobuf schema.
 
-These processors both expect the incoming flowfiles to have the `protobuf.schemaPath` defined, which should contain the
-path to the **compiled** `.desc` proto file to use to decode/encode the data.
+### Specifying the schema file
+In both processors, you have to specify a schema file to use for data encoding/decoding. You can do so either
+processor-wide (meaning that every incoming flowfiles will be processed using the same schema) or per-flowfile. In both
+cases, it is done by writing the absolute schema file path in the `protobuf.schemaPath` property of the flowfile or
+processor. Note that *if the property is set in the flowfile, it will override the one from the processor*.
+
+### Schema file format
+I strongly recommend you to use a compiled `.desc` file whenever possible, for a performance reason. This file can be
+obtained by compiling the `.proto` file with [Google's `protoc`](https://github.com/google/protobuf/releases).
+However, if you cannot compile your `.proto` file, you can set it directly as a schema file and set the
+`protobuf.compileSchema` property of the processor to tell it to compile the schema dynamically.
 
 > **Important**: The processor allows you to import **only one schema file**, so you need to package all you dependencies
 > into one file. To do so, compile your main `.proto` file using the `--include_imports` option of the `protoc` compiler.
-
+> If you are using a raw `.proto` file, you need to bundle all imports inside the file.
 
 > *Note*: if you don't have a compiled `.desc` file yet, you should
 > [take a look at `protoc`](https://github.com/google/protobuf/releases), the Protobuf compiler from Google. 
