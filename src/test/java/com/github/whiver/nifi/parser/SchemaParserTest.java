@@ -26,7 +26,6 @@
 
 package com.github.whiver.nifi.parser;
 
-import com.github.whiver.nifi.parser.parser.CompiledSchema;
 import org.apache.commons.io.IOUtils;
 import org.junit.Assert;
 import org.junit.Test;

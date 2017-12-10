@@ -24,7 +24,7 @@
  * SOFTWARE.
  */
 
-package com.github.whiver.nifi.parser.parser;
+package com.github.whiver.nifi.parser;
 
 import java.io.File;
 import java.io.FileInputStream;
