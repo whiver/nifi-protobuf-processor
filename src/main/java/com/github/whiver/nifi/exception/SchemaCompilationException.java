@@ -1,3 +1,4 @@
+
 /*
  * MIT License
  *
@@ -26,10 +27,8 @@
 
 package com.github.whiver.nifi.exception;
 
-import java.io.IOException;
-
-public class MessageDecodingException extends Exception {
-    public MessageDecodingException(IOException parent) {
-        super("Unable to decode data: " + parent.getMessage(), parent);
+public class SchemaCompilationException extends Exception {
+    public SchemaCompilationException(String filepath) {
+        super("An error occurred while compiling " + filepath);
     }
 }

@@ -1,8 +1,33 @@
+/*
+ * MIT License
+ *
+ * NiFi Protobuf Processor
+ * Copyright (c) 2017 William Hiver
+ * https://github.com/whiver/nifi-protobuf-processor
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package com.github.whiver.nifi.processor;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -12,24 +37,16 @@ import org.junit.Test;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 
 /**
  * A test class mocking a NiFi flow
  */
 public class ProtobufDecoderTest {
-    /**
-     * List the files used to test the decoder. Only list the file names without extension, as the .data file will be
-     * used as Protobuf encoded data and the .json file will be used as the reference decoded result.
-     * Note that every files will be encoded against the AddressBook schema.
-     */
-    private final String[] validTestFiles = {
-            "AddressBook_basic", "AddressBook_several"
-    };
 
     @Test
     public void onTrigger() throws Exception {
+        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
 
         // AddressBook test
@@ -63,6 +80,26 @@ public class ProtobufDecoderTest {
             JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
             Assert.assertEquals("The parsing result of " + result.getAttribute("testfile") + ".data is not as expected", expected, given);
         }
+
+        // Change schema to a .proto file
+        runner.clearTransferState();
+        runner.setProperty("protobuf.compileSchema", "true");
+        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(dataFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+
+        JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
+        JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The parsing result of Person.data is not as expected", expected, given);
     }
 
     @Test

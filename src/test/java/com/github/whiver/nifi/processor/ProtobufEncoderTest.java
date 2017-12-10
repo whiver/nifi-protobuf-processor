@@ -1,7 +1,31 @@
+/*
+ * MIT License
+ *
+ * NiFi Protobuf Processor
+ * Copyright (c) 2017 William Hiver
+ * https://github.com/whiver/nifi-protobuf-processor
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package com.github.whiver.nifi.processor;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
@@ -13,17 +37,11 @@ import java.util.HashMap;
 import java.util.List;
 
 public class ProtobufEncoderTest {
-    /**
-     * List the files used to test the encoder. Only list the file names without extension, as the .data file will be
-     * used as a reference and the .json file will be used as a source file.
-     * Note that every files will be encoded against the AddressBook schema.
-     */
-    private final String[] validTestFiles = {
-        "AddressBook_basic", "AddressBook_several"
-    };
 
     @Test
     public void onTrigger() throws Exception {
+        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
+
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
 
         HashMap<String, String> adressBookProperties = new HashMap<>();
@@ -53,6 +71,23 @@ public class ProtobufEncoderTest {
             result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/" + result.getAttribute("testfile") + ".data"));
         }
 
+        // Change schema to a .proto file
+        runner.clearTransferState();
+        runner.setProperty("protobuf.compileSchema", "true");
+        InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(jsonFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
+        results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
     }
 
     @Test

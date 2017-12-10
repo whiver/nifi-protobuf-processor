@@ -24,12 +24,20 @@
  * SOFTWARE.
  */
 
-package com.github.whiver.nifi.exception;
+package com.github.whiver.nifi.parser;
 
-import java.io.IOException;
+import org.apache.commons.io.IOUtils;
+import org.junit.Assert;
+import org.junit.Test;
 
-public class MessageDecodingException extends Exception {
-    public MessageDecodingException(IOException parent) {
-        super("Unable to decode data: " + parent.getMessage(), parent);
+import java.io.InputStream;
+
+public class SchemaParserTest {
+    @Test
+    public void compileProto() throws Exception {
+        InputStream referenceSchema = SchemaParserTest.class.getResourceAsStream("/schemas/Person.desc");
+        try (CompiledSchema resultSchema = SchemaParser.compileProto(SchemaParserTest.class.getResource("/schemas/Person.proto").getPath())) {
+            Assert.assertTrue("Compiled Person.proto should be equal to Person.desc", IOUtils.contentEquals(referenceSchema, resultSchema.read()));
+        }
     }
 }
