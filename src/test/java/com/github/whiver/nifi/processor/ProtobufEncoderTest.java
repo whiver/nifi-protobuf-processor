@@ -43,6 +43,7 @@ public class ProtobufEncoderTest {
         final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
 
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty("protobuf.format", "JSON");
 
         HashMap<String, String> adressBookProperties = new HashMap<>();
         adressBookProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
@@ -93,6 +94,7 @@ public class ProtobufEncoderTest {
     @Test
     public void onPropertyModified() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty("protobuf.format", "JSON");
 
         HashMap<String, String> addressBookProperties = new HashMap<>();
         addressBookProperties.put("protobuf.messageType", "AddressBook");

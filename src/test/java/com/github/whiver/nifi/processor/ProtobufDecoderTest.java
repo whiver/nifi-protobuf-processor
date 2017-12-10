@@ -48,6 +48,7 @@ public class ProtobufDecoderTest {
     public void onTrigger() throws Exception {
         final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        runner.setProperty("protobuf.format", "JSON");
 
         // AddressBook test
         HashMap<String, String> addressBookProperties = new HashMap<>();
@@ -105,6 +106,7 @@ public class ProtobufDecoderTest {
     @Test
     public void onPropertyModified() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        runner.setProperty("protobuf.format", "JSON");
 
         HashMap<String, String> addressBookProperties = new HashMap<>();
         addressBookProperties.put("protobuf.messageType", "AddressBook");

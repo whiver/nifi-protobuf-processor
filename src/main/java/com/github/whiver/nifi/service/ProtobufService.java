@@ -28,14 +28,16 @@ package com.github.whiver.nifi.service;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.*;
-import com.github.whiver.nifi.mapper.JSONMapper;
+import com.github.whiver.nifi.mapper.Mapper;
 import com.github.whiver.nifi.parser.SchemaParser;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.DynamicMessage;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 
 public class ProtobufService {
     /**
@@ -43,6 +45,7 @@ public class ProtobufService {
      * @param schema  Schema used to decode the binary data
      * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
+     * @param outputFormat   Format in which output the data
      * @param encodedData   Encoded data source
      * @return  A JSON representation of the data, contained in a Java String
      * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data into JSON
@@ -51,7 +54,8 @@ public class ProtobufService {
      * @throws MessageDecodingException Thrown when an error occurs during the binary decoding
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static String decodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, InputStream encodedData) throws InvalidProtocolBufferException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException {
+    public static String decodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mapper.MapperTarget outputFormat, InputStream encodedData)
+            throws InvalidProtocolBufferException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, UnknownFormatException {
         Descriptors.Descriptor descriptor;
         DynamicMessage message;
 
@@ -67,7 +71,7 @@ public class ProtobufService {
             throw new MessageDecodingException(e);
         }
 
-        return JSONMapper.toJSON(message);
+        return Mapper.encodeAs(message, outputFormat);
     }
 
     /**
@@ -75,6 +79,7 @@ public class ProtobufService {
      * @param pathToSchema  Path to the .desc schema file on disk
      * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
+     * @param outputFormat   Format in which output the data
      * @param encodedData   Encoded data source
      * @return  A JSON representation of the data, contained in a Java String
      * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data into JSON
@@ -83,8 +88,9 @@ public class ProtobufService {
      * @throws MessageDecodingException Thrown when an error occurs during the binary decoding
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static String decodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, InputStream encodedData) throws IOException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
-        return decodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, encodedData);
+    public static String decodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mapper.MapperTarget outputFormat, InputStream encodedData)
+            throws IOException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException, UnknownFormatException {
+        return decodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, outputFormat, encodedData);
     }
 
     /**
@@ -93,6 +99,7 @@ public class ProtobufService {
      * @param schema  Schema object to use to encode binary data
      * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
+     * @param inputFormat   Format of the input data
      * @param jsonData      Data to encode, structured in a JSON format
      * @param binaryOutput  The stream where to output the encoded data
      * @throws Descriptors.DescriptorValidationException    Thrown when the schema is invalid
@@ -101,7 +108,8 @@ public class ProtobufService {
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static void encodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, InputStream jsonData, OutputStream binaryOutput) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException {
+    public static void encodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mapper.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
+            throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, UnknownFormatException {
         Descriptors.Descriptor descriptor;
         Message message;
 
@@ -112,10 +120,10 @@ public class ProtobufService {
         }
 
         DynamicMessage.Builder builder = DynamicMessage.newBuilder(descriptor);
-        BufferedReader jsonReader = new BufferedReader(new InputStreamReader(jsonData));
+
 
         try {
-            message = JSONMapper.fromJSON(new BufferedReader(jsonReader), builder);
+            message = Mapper.decodeFrom(jsonData, builder, inputFormat);
         } catch (IOException e) {
             throw new IOException("Unable to parse JSON data: " + e.getMessage(), e);
         }
@@ -133,6 +141,7 @@ public class ProtobufService {
      * @param pathToSchema  Path to the .desc schema file on disk
      * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
+     * @param inputFormat   Format of the input data
      * @param jsonData      Data to encode, structured in a JSON format
      * @param binaryOutput  The stream where to output the encoded data
      * @throws Descriptors.DescriptorValidationException    Thrown when the schema is invalid
@@ -141,7 +150,8 @@ public class ProtobufService {
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static void encodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, InputStream jsonData, OutputStream binaryOutput) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, SchemaCompilationException, InterruptedException {
-        encodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, jsonData, binaryOutput);
+    public static void encodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mapper.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
+            throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, SchemaCompilationException, InterruptedException, UnknownFormatException {
+        encodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, inputFormat, jsonData, binaryOutput);
     }
 }

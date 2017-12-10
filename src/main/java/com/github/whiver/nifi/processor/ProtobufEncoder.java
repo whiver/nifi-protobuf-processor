@@ -30,6 +30,7 @@ package com.github.whiver.nifi.processor;
 import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
+import com.github.whiver.nifi.mapper.Mapper;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
@@ -89,6 +90,14 @@ public class ProtobufEncoder extends AbstractProcessor {
             .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
             .build();
 
+    private static final PropertyDescriptor INPUT_FORMAT = new PropertyDescriptor.Builder()
+            .name("protobuf.format")
+            .displayName("Input format")
+            .required(true)
+            .description("Format of the incoming data. Can be one of JSON or XML.")
+            .allowableValues("JSON", "XML")
+            .build();
+
 
     /*          RELATIONSHIPS           */
 
@@ -112,6 +121,7 @@ public class ProtobufEncoder extends AbstractProcessor {
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(PROTOBUF_SCHEMA);
         properties.add(COMPILE_SCHEMA);
+        properties.add(INPUT_FORMAT);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -130,6 +140,7 @@ public class ProtobufEncoder extends AbstractProcessor {
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");
+        Mapper.MapperTarget inputFormat = Mapper.MapperTarget.valueOf(processContext.getProperty(INPUT_FORMAT.getName()).getValue());
 
 
         if (protobufSchema == null && this.schema == null) {
@@ -144,9 +155,9 @@ public class ProtobufEncoder extends AbstractProcessor {
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
                     if (protobufSchema == null) {
-                        ProtobufService.encodeProtobuf(this.schema, compileSchema, messageType, in, out);
+                        ProtobufService.encodeProtobuf(this.schema, compileSchema, messageType, inputFormat, in, out);
                     } else {
-                        ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
+                        ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, inputFormat, in, out);
                     }
                 } catch (Descriptors.DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);

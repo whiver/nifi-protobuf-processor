@@ -27,10 +27,8 @@
 package com.github.whiver.nifi.processor;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
-import com.github.whiver.nifi.exception.MessageDecodingException;
-import com.github.whiver.nifi.exception.SchemaCompilationException;
-import com.github.whiver.nifi.exception.SchemaLoadingException;
-import com.github.whiver.nifi.exception.UnknownMessageTypeException;
+import com.github.whiver.nifi.exception.*;
+import com.github.whiver.nifi.mapper.Mapper;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -92,6 +90,14 @@ public class ProtobufDecoder extends AbstractProcessor {
             .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
             .build();
 
+    private static final PropertyDescriptor OUTPUT_FORMAT = new PropertyDescriptor.Builder()
+            .name("protobuf.format")
+            .displayName("Output format")
+            .required(true)
+            .description("Format in which output the data. Can be one of JSON or XML.")
+            .allowableValues("JSON", "XML")
+            .build();
+
 
     /*          RELATIONSHIPS           */
 
@@ -115,6 +121,7 @@ public class ProtobufDecoder extends AbstractProcessor {
         List<PropertyDescriptor> properties = new ArrayList<>();
         properties.add(PROTOBUF_SCHEMA);
         properties.add(COMPILE_SCHEMA);
+        properties.add(OUTPUT_FORMAT);
         this.properties = Collections.unmodifiableList(properties);
 
         Set<Relationship> relationships = new HashSet<>();
@@ -133,6 +140,7 @@ public class ProtobufDecoder extends AbstractProcessor {
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");
+        Mapper.MapperTarget outputFormat = Mapper.MapperTarget.valueOf(processContext.getProperty(OUTPUT_FORMAT.getName()).getValue());
 
         if (protobufSchema == null && this.schema == null) {
             getLogger().error("No schema path given, please fill in the "+ PROTOBUF_SCHEMA.getName() + " property.");
@@ -146,9 +154,9 @@ public class ProtobufDecoder extends AbstractProcessor {
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
                     if (protobufSchema == null) {
-                        out.write(ProtobufService.decodeProtobuf(this.schema, compileSchema, messageType, in).getBytes());
+                        out.write(ProtobufService.decodeProtobuf(this.schema, compileSchema, messageType, outputFormat, in).getBytes());
                     } else {
-                        out.write(ProtobufService.decodeProtobuf(protobufSchema, compileSchema, messageType, in).getBytes());
+                        out.write(ProtobufService.decodeProtobuf(protobufSchema, compileSchema, messageType, outputFormat, in).getBytes());
                     }
                 } catch (DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);
@@ -156,14 +164,12 @@ public class ProtobufDecoder extends AbstractProcessor {
                 } catch (SchemaLoadingException | SchemaCompilationException e) {
                     getLogger().error(e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
-                } catch (UnknownMessageTypeException | MessageDecodingException e) {
+                } catch (UnknownMessageTypeException | MessageDecodingException | UnknownFormatException | InterruptedException e) {
                     getLogger().error(e.getMessage());
                     error.set(ERROR);
                 } catch (InvalidProtocolBufferException e) {
                     getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
                     error.set(ERROR);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
             });
 
