@@ -30,7 +30,7 @@ package com.github.whiver.nifi.processor;
 import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
-import com.github.whiver.nifi.mapper.Mapper;
+import com.github.whiver.nifi.mapper.Mappers;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
@@ -140,7 +140,7 @@ public class ProtobufEncoder extends AbstractProcessor {
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");
-        Mapper.MapperTarget inputFormat = Mapper.MapperTarget.valueOf(processContext.getProperty(INPUT_FORMAT.getName()).getValue());
+        Mappers.MapperTarget inputFormat = Mappers.MapperTarget.valueOf(processContext.getProperty(INPUT_FORMAT.getName()).getValue());
 
 
         if (protobufSchema == null && this.schema == null) {

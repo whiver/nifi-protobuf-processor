@@ -29,14 +29,11 @@ package com.github.whiver.nifi.mapper;
 import com.github.whiver.nifi.exception.UnknownFormatException;
 import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
-import com.googlecode.protobuf.format.XmlFormat;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 
-public class Mapper {
+public class Mappers {
     public enum MapperTarget {JSON, XML};
 
     /**
@@ -48,15 +45,7 @@ public class Mapper {
      * @throws UnknownFormatException           Thrown when the requested format is not supported
      */
     public static String encodeAs(Message message, MapperTarget target) throws InvalidProtocolBufferException, UnknownFormatException {
-        switch (target) {
-            case JSON:
-                return JSONMapper.toJSON(message);
-            case XML:
-                XmlFormat xmlFormat = new XmlFormat();
-                return xmlFormat.printToString(message);
-            default:
-                throw new UnknownFormatException(target);
-        }
+        return getMapper(target).encode(message);
     }
 
     /**
@@ -69,16 +58,17 @@ public class Mapper {
      * @throws IOException              Thrown when an error occurs during the data parsing
      */
     public static Message decodeFrom(InputStream inputData, Message.Builder messageBuilder, MapperTarget target) throws UnknownFormatException, IOException {
-        switch (target) {
+        return getMapper(target).decode(inputData, messageBuilder);
+    }
+
+    public static AbstractMapper getMapper(MapperTarget format) throws UnknownFormatException {
+        switch (format) {
             case JSON:
-                BufferedReader jsonReader = new BufferedReader(new InputStreamReader(inputData));
-                return JSONMapper.fromJSON(new BufferedReader(jsonReader), messageBuilder);
+                return new JSONMapper();
             case XML:
-                XmlFormat xmlFormat = new XmlFormat();
-                xmlFormat.merge(inputData, messageBuilder);
-                return messageBuilder.build();
+                return new XMLMapper();
             default:
-                throw new UnknownFormatException(target);
+                throw new UnknownFormatException(format);
         }
     }
 }

@@ -26,10 +26,10 @@
 
 package com.github.whiver.nifi.exception;
 
-import com.github.whiver.nifi.mapper.Mapper;
+import com.github.whiver.nifi.mapper.Mappers;
 
 public class UnknownFormatException extends Exception {
-    public UnknownFormatException(Mapper.MapperTarget format) {
+    public UnknownFormatException(Mappers.MapperTarget format) {
         super("Unknown target format " + format.toString());
     }
 }

@@ -1,0 +1,11 @@
+<AddressBook>
+    <people>
+        <name>John Doe</name>
+        <id>42</id>
+        <email>john.doe@example.com</email>
+    </people>
+    <people>
+        <name>Jane Doe</name>
+        <id>41</id>
+    </people>
+</AddressBook>

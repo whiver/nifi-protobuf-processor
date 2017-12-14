@@ -32,6 +32,7 @@ import org.apache.nifi.util.TestRunners;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
@@ -158,5 +159,40 @@ public class ProtobufEncoderTest {
         result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
         result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"));
 
+    }
+
+    @Test
+    public void onTriggerXMLEncoding() throws IOException {
+        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
+
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty("protobuf.format", "XML");
+
+        HashMap<String, String> adressBookProperties = new HashMap<>();
+        adressBookProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        adressBookProperties.put("protobuf.messageType", "AddressBook");
+
+        // AddressBook test
+        for (String filename: validTestFiles) {
+            InputStream xmlFile = ProtobufEncoderTest.class.getResourceAsStream("/data/" + filename + ".xml");
+            adressBookProperties.put("testfile", filename);
+            runner.enqueue(xmlFile, adressBookProperties);
+        }
+
+        // Ensure the configuration is valid as-is
+        runner.assertValid();
+
+        // Run the enqueued content, it also takes an int = number of contents queued
+        runner.run(validTestFiles.length);
+        runner.assertQueueEmpty();
+
+        // Check if the data was processed without failure
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS);
+        Assert.assertEquals("All flowfiles should be returned to success", validTestFiles.length, results.size());
+
+        // Check if the content of the flowfile is as expected
+        for (MockFlowFile result: results) {
+            result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/" + result.getAttribute("testfile") + ".data"));
+        }
     }
 }

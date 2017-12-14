@@ -28,7 +28,7 @@ package com.github.whiver.nifi.service;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.*;
-import com.github.whiver.nifi.mapper.Mapper;
+import com.github.whiver.nifi.mapper.Mappers;
 import com.github.whiver.nifi.parser.SchemaParser;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.DynamicMessage;
@@ -48,13 +48,13 @@ public class ProtobufService {
      * @param outputFormat   Format in which output the data
      * @param encodedData   Encoded data source
      * @return  A JSON representation of the data, contained in a Java String
-     * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data into JSON
+     * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data
      * @throws Descriptors.DescriptorValidationException    Thrown when the schema is invalid
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws MessageDecodingException Thrown when an error occurs during the binary decoding
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static String decodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mapper.MapperTarget outputFormat, InputStream encodedData)
+    public static String decodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mappers.MapperTarget outputFormat, InputStream encodedData)
             throws InvalidProtocolBufferException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, UnknownFormatException {
         Descriptors.Descriptor descriptor;
         DynamicMessage message;
@@ -71,7 +71,7 @@ public class ProtobufService {
             throw new MessageDecodingException(e);
         }
 
-        return Mapper.encodeAs(message, outputFormat);
+        return Mappers.encodeAs(message, outputFormat);
     }
 
     /**
@@ -82,19 +82,19 @@ public class ProtobufService {
      * @param outputFormat   Format in which output the data
      * @param encodedData   Encoded data source
      * @return  A JSON representation of the data, contained in a Java String
-     * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data into JSON
+     * @throws InvalidProtocolBufferException   Thrown when an error occurs during the encoding of the decoded data
      * @throws Descriptors.DescriptorValidationException    Thrown when the schema is invalid
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws MessageDecodingException Thrown when an error occurs during the binary decoding
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static String decodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mapper.MapperTarget outputFormat, InputStream encodedData)
+    public static String decodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mappers.MapperTarget outputFormat, InputStream encodedData)
             throws IOException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException, UnknownFormatException {
         return decodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, outputFormat, encodedData);
     }
 
     /**
-     * Handle all the logic leading to the encoding of a Protobuf-encoded binary given a schema file path and a JSON
+     * Handle all the logic leading to the encoding of a Protobuf-encoded binary given a schema file path and a JSON/XML
      * data file.
      * @param schema  Schema object to use to encode binary data
      * @param compileSchema true if the given schema is still in raw .proto format
@@ -108,7 +108,7 @@ public class ProtobufService {
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static void encodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mapper.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
+    public static void encodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, Mappers.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
             throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, UnknownFormatException {
         Descriptors.Descriptor descriptor;
         Message message;
@@ -123,9 +123,9 @@ public class ProtobufService {
 
 
         try {
-            message = Mapper.decodeFrom(jsonData, builder, inputFormat);
+            message = Mappers.decodeFrom(jsonData, builder, inputFormat);
         } catch (IOException e) {
-            throw new IOException("Unable to parse JSON data: " + e.getMessage(), e);
+            throw new IOException("Unable to parse " + inputFormat.toString() + " data: " + e.getMessage(), e);
         }
 
         try {
@@ -136,7 +136,7 @@ public class ProtobufService {
     }
 
     /**
-     * Handle all the logic leading to the encoding of a Protobuf-encoded binary given a schema file path and a JSON
+     * Handle all the logic leading to the encoding of a Protobuf-encoded binary given a schema file path and a structured
      * data file.
      * @param pathToSchema  Path to the .desc schema file on disk
      * @param compileSchema true if the given schema is still in raw .proto format
@@ -150,7 +150,7 @@ public class ProtobufService {
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static void encodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mapper.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
+    public static void encodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, Mappers.MapperTarget inputFormat, InputStream jsonData, OutputStream binaryOutput)
             throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, SchemaCompilationException, InterruptedException, UnknownFormatException {
         encodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, inputFormat, jsonData, binaryOutput);
     }

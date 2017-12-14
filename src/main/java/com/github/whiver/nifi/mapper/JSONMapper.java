@@ -31,31 +31,23 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.google.protobuf.util.JsonFormat;
 
+import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.Reader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 
-public class JSONMapper {
-    /**
-     * Format a Protocol Buffers Message to a JSON string
-     * @param data  The Message to be formatted
-     * @return  A JSON String representing the data
-     * @throws InvalidProtocolBufferException   Thrown in case of invalid Message data
-     */
-    public static String toJSON(Message data) throws InvalidProtocolBufferException {
+public class JSONMapper implements AbstractMapper {
+    @Override
+    public String encode(Message data) throws InvalidProtocolBufferException {
         JsonFormat.Printer printer = JsonFormat.printer();
         return printer.print(data);
     }
 
-    /**
-     * Extract data from a JSON String and use them to construct a Protocol Buffers Message.
-     * @param jsonReader  A reader providing the JSON data to parse
-     * @param builder   A Message builder to use to construct the resulting Message
-     * @return  the constructed Message
-     * @throws InvalidProtocolBufferException   Thrown in case of invalid Message data
-     */
-    public static Message fromJSON(Reader jsonReader, Message.Builder builder) throws IOException {
+    @Override
+    public Message decode(InputStream inputData, Message.Builder builder) throws IOException {
+        BufferedReader jsonReader = new BufferedReader(new InputStreamReader(inputData));
         JsonFormat.Parser parser = JsonFormat.parser();
-        parser.merge(jsonReader, builder);
+        parser.merge(new BufferedReader(jsonReader), builder);
         return builder.build();
     }
 }
