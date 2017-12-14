@@ -37,89 +37,21 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.processor.*;
+import org.apache.nifi.processor.AbstractProcessor;
+import org.apache.nifi.processor.ProcessContext;
+import org.apache.nifi.processor.ProcessSession;
+import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
-import org.apache.nifi.processor.util.StandardValidators;
 
 import java.io.*;
-import java.util.*;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SideEffectFree
 @Tags({"Protobuf", "decoder", "Google Protocol Buffer"})
 @CapabilityDescription("Decode incoming data encoded using a Google Protocol Buffer Schema.")
-public class ProtobufEncoder extends AbstractProcessor {
-    /**
-     * NiFi properties of the processor, that can be configured using the Web UI
-     */
-    private List<PropertyDescriptor> properties;
-
-    /**
-     * The different relationships of the processor
-     */
-    private Set<Relationship> relationships;
-
-    /**
-     * The compiled descriptor used to parse incoming binaries in case where the schema has been specified in the
-     * processor level (protobuf.schema property)
-     */
-    private DynamicSchema schema;
-
-
-    /*          PROPERTIES          */
-
-    private static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
-            .name("protobuf.schemaPath")
-            .displayName("Schema path")
-            .required(false)
-            .description("Path to the Protocol Buffers schema to use for decoding the data. If set, this schema will " +
-                    "be used when the flowfile protobuf.schemaPath is missing.")
-            .expressionLanguageSupported(false)
-            .addValidator(StandardValidators.createURLorFileValidator())
-            .build();
-
-    private static final PropertyDescriptor COMPILE_SCHEMA = new PropertyDescriptor.Builder()
-            .name("protobuf.compileSchema")
-            .displayName("Compile schema")
-            .required(true)
-            .defaultValue("false")
-            .description("Set this property to true if the given schema file must be compiled using protoc before " +
-                    "encoding the data. It is useful if the given schema file is in .proto format. Try to always use " +
-                    "precompiled .desc schema whenever possible, since it is more performant.")
-            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
-            .build();
-
-
-    /*          RELATIONSHIPS           */
-
-    static final Relationship SUCCESS = new Relationship.Builder()
-            .name("Success")
-            .description("Success relationship")
-            .build();
-
-    static final Relationship INVALID_SCHEMA = new Relationship.Builder()
-            .name("Invalid schema")
-            .description("Relationship used in case of invalid Protocol Buffer schema.")
-            .build();
-
-    static final Relationship ERROR = new Relationship.Builder()
-            .name("error")
-            .description("Error relationship")
-            .build();
-
-    @Override
-    public void init(final ProcessorInitializationContext context) {
-        List<PropertyDescriptor> properties = new ArrayList<>();
-        properties.add(PROTOBUF_SCHEMA);
-        properties.add(COMPILE_SCHEMA);
-        this.properties = Collections.unmodifiableList(properties);
-
-        Set<Relationship> relationships = new HashSet<>();
-        relationships.add(SUCCESS);
-        relationships.add(INVALID_SCHEMA);
-        relationships.add(ERROR);
-        this.relationships = Collections.unmodifiableSet(relationships);
-    }
+public class ProtobufEncoder extends ProtobufProcessor {
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
