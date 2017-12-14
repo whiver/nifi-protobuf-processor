@@ -34,6 +34,7 @@ import org.apache.nifi.util.TestRunners;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
@@ -43,10 +44,14 @@ import java.util.List;
  * A test class mocking a NiFi flow
  */
 public class ProtobufDecoderTest {
+    private final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
 
+    /**
+     * Test decoding valid files given a .desc schema
+     * @throws IOException
+     */
     @Test
-    public void onTrigger() throws Exception {
-        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
+    public void onTriggerDecodeValidFiles() throws IOException {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
 
         // AddressBook test
@@ -80,10 +85,17 @@ public class ProtobufDecoderTest {
             JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
             Assert.assertEquals("The parsing result of " + result.getAttribute("testfile") + ".data is not as expected", expected, given);
         }
+    }
 
-        // Change schema to a .proto file
-        runner.clearTransferState();
+    /**
+     * Test decoding valid files given an uncompiled .proto schema
+     * @throws Exception
+     */
+    @Test
+    public void onTriggerCompileSchemaAndDecodeValidFiles() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
         runner.setProperty("protobuf.compileSchema", "true");
+
         InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
@@ -97,11 +109,16 @@ public class ProtobufDecoderTest {
         runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
         MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
 
+        ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
         JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
         Assert.assertEquals("The parsing result of Person.data is not as expected", expected, given);
     }
 
+    /**
+     * Test decoding using a processor-wide schema and switches between flowfile schema and processor schema
+     * @throws Exception
+     */
     @Test
     public void onPropertyModified() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());

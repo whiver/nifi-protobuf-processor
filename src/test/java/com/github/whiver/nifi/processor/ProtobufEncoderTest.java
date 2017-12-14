@@ -32,16 +32,20 @@ import org.apache.nifi.util.TestRunners;
 import org.junit.Assert;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 
 public class ProtobufEncoderTest {
+    private final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
 
+    /**
+     * Test encoding valid files using a .desc schema
+     * @throws IOException
+     */
     @Test
-    public void onTrigger() throws Exception {
-        final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
-
+    public void onTriggerEncodeValidFiles() throws IOException {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
 
         HashMap<String, String> adressBookProperties = new HashMap<>();
@@ -70,10 +74,17 @@ public class ProtobufEncoderTest {
         for (MockFlowFile result: results) {
             result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/" + result.getAttribute("testfile") + ".data"));
         }
+    }
 
-        // Change schema to a .proto file
-        runner.clearTransferState();
+    /**
+     * Test encoding valid files given an uncompiled .proto schema
+     * @throws Exception
+     */
+    @Test
+    public void onTriggerCompileSchemaAndEncodeValidFiles() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
         runner.setProperty("protobuf.compileSchema", "true");
+
         InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
@@ -85,11 +96,15 @@ public class ProtobufEncoderTest {
         runner.assertQueueEmpty();
 
         runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
-        results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
         Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
         results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
     }
 
+    /**
+     * Test encoding using a processor-wide schema and switches between flowfile schema and processor schema
+     * @throws Exception
+     */
     @Test
     public void onPropertyModified() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
