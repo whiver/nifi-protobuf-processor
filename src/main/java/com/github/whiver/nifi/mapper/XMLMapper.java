@@ -26,7 +26,6 @@
 
 package com.github.whiver.nifi.mapper;
 
-import com.google.protobuf.InvalidProtocolBufferException;
 import com.google.protobuf.Message;
 import com.googlecode.protobuf.format.XmlFormat;
 
@@ -35,12 +34,11 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 public class XMLMapper implements AbstractMapper {
-    private final String HEADER = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>";
 
     @Override
-    public String encode(Message data) throws InvalidProtocolBufferException {
+    public String encode(Message data) {
         XmlFormat xmlFormat = new XmlFormat();
-        return HEADER + xmlFormat.printToString(data);
+        return xmlFormat.printToString(data);
     }
 
     @Override
