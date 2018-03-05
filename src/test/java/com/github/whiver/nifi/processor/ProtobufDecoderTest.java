@@ -116,6 +116,34 @@ public class ProtobufDecoderTest {
     }
 
     /**
+     * Test if the per-flowfile schema have priority on the processor-wide one
+     * @throws IOException
+     */
+    @Test
+    public void onTriggerUsePerFlowfileSchemaIfAvailable() throws IOException {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        runner.setProperty("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+
+        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(dataFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
+        JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The decoder should use the schema from flowfile instead of processor if given", expected, given);
+    }
+
+    /**
      * Test decoding using a processor-wide schema and switches between flowfile schema and processor schema
      * @throws Exception
      */

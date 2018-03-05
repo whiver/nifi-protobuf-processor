@@ -40,6 +40,17 @@ import java.util.List;
 public class ProtobufEncoderTest {
     private final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
 
+
+    /**
+     * Test default values of processor properties
+     */
+    @Test
+    public void initDefaultPropertiesValues() {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        Assert.assertFalse("Default value for COMPILE_SCHEMA should be false", runner.getProcessContext().getProperty(ProtobufProcessor.COMPILE_SCHEMA.getName()).asBoolean());
+        Assert.assertNull("Default value for PROTOBUF_SCHEMA should be null", runner.getProcessContext().getProperty(ProtobufProcessor.PROTOBUF_SCHEMA).getValue());
+    }
+
     /**
      * Test encoding valid files using a .desc schema
      * @throws IOException
@@ -98,6 +109,31 @@ public class ProtobufEncoderTest {
         runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
         List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
         Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
+        results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
+    }
+
+    /**
+     * Test if the per-flowfile schema have priority on the processor-wide one
+     * @throws IOException
+     */
+    @Test
+    public void onTriggerUsePerFlowfileSchemaIfAvailable() throws IOException {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+
+        InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(jsonFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The encoder should use the schema from flowfile instead of processor if given", 1, results.size());
         results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
     }
 
