@@ -88,17 +88,42 @@ public class ProtobufEncoderTest {
     }
 
     /**
-     * Test encoding valid files given an uncompiled .proto schema
+     * Test encoding valid files given an uncompiled .proto schema specified at flowfile level
      * @throws Exception
      */
     @Test
-    public void onTriggerCompileSchemaAndEncodeValidFiles() throws Exception {
+    public void onTriggerCompileFlowfileSchemaAndEncodeValidFiles() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        runner.setProperty("protobuf.compileSchema", "true");
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
 
         InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(jsonFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
+        results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
+    }
+
+    /**
+     * Test encoding valid files given an uncompiled .proto schema specified at processor level
+     * @throws Exception
+     */
+    @Test
+    public void onTriggerCompileProcessorSchemaAndEncodeValidFiles() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+
+        InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
+        HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put("protobuf.messageType", "Person");
         runner.enqueue(jsonFile, personProperties);
 
