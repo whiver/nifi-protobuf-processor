@@ -27,24 +27,30 @@
 package com.github.whiver.nifi.processor;
 
 import com.github.os72.protobuf.dynamic.DynamicSchema;
+import com.github.whiver.nifi.exception.SchemaCompilationException;
+import com.github.whiver.nifi.exception.SchemaLoadingException;
+import com.github.whiver.nifi.parser.SchemaParser;
+import com.google.protobuf.Descriptors;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessorInitializationContext;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.util.StandardValidators;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.*;
 
 public abstract class ProtobufProcessor extends AbstractProcessor {
     /**
      * NiFi properties of the processor, that can be configured using the Web UI
      */
-    protected List<PropertyDescriptor> properties;
+    private List<PropertyDescriptor> properties;
 
     /**
      * The different relationships of the processor
      */
-    protected Set<Relationship> relationships;
+    private Set<Relationship> relationships;
 
     /**
      * The compiled descriptor used to parse incoming binaries in case where the schema has been specified in the
@@ -52,10 +58,15 @@ public abstract class ProtobufProcessor extends AbstractProcessor {
      */
     protected DynamicSchema schema;
 
+    /**
+     * Reflects the value of the COMPILE_SCHEMA property, so that it can be used by the onPropertyModified method
+     */
+    private boolean compileSchema;
+
 
     /*          PROPERTIES          */
 
-    protected static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
+    static final PropertyDescriptor PROTOBUF_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.schemaPath")
             .displayName("Schema path")
             .required(false)
@@ -65,7 +76,7 @@ public abstract class ProtobufProcessor extends AbstractProcessor {
             .addValidator(StandardValidators.createURLorFileValidator())
             .build();
 
-    protected static final PropertyDescriptor COMPILE_SCHEMA = new PropertyDescriptor.Builder()
+    static final PropertyDescriptor COMPILE_SCHEMA = new PropertyDescriptor.Builder()
             .name("protobuf.compileSchema")
             .displayName("Compile schema")
             .required(true)
@@ -106,5 +117,55 @@ public abstract class ProtobufProcessor extends AbstractProcessor {
         relationships.add(INVALID_SCHEMA);
         relationships.add(ERROR);
         this.relationships = Collections.unmodifiableSet(relationships);
+
+        this.compileSchema = false;
+    }
+
+    /**
+     * Compile the given schema file when the protobuf.schemaPath property is given
+     *
+     * @see AbstractProcessor
+     */
+    @Override
+    public void onPropertyModified(PropertyDescriptor descriptor, String oldValue, String newValue) {
+        super.onPropertyModified(descriptor, oldValue, newValue);
+
+        if (descriptor == PROTOBUF_SCHEMA) {
+
+            // If the property is unset, just delete the existing descriptor
+            if (newValue == null || newValue.isEmpty()) {
+                this.schema = null;
+                return;
+            }
+
+            if (!newValue.equals(oldValue)) {
+                this.schema = null;
+                try {
+                    this.schema = SchemaParser.parseSchema(newValue, this.compileSchema);
+                } catch (FileNotFoundException e) {
+                    getLogger().error("File " + newValue + " not found on the disk.", e);
+                } catch (Descriptors.DescriptorValidationException e) {
+                    getLogger().error("Invalid schema file: " + e.getMessage(), e);
+                } catch (IOException e) {
+                    getLogger().error("Unable to read file: " + e.getMessage(), e);
+                } catch (SchemaLoadingException | SchemaCompilationException e) {
+                    getLogger().error(e.getMessage(), e);
+                } catch (InterruptedException e) {
+                    getLogger().error("Unable to compile schema: " + e.getMessage(), e);
+                }
+            }
+        } else if (descriptor == COMPILE_SCHEMA) {
+            this.compileSchema = Boolean.parseBoolean(newValue);
+        }
+    }
+
+    @Override
+    public Set<Relationship> getRelationships() {
+        return relationships;
+    }
+
+    @Override
+    public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
+        return properties;
     }
 }

@@ -27,7 +27,6 @@
 package com.github.whiver.nifi.processor;
 
 
-import com.github.os72.protobuf.dynamic.DynamicSchema;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
 import com.github.whiver.nifi.service.ProtobufService;
@@ -35,17 +34,14 @@ import com.google.protobuf.Descriptors;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
-import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
-import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 
-import java.io.*;
-import java.util.List;
-import java.util.Set;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SideEffectFree
@@ -59,24 +55,28 @@ public class ProtobufEncoder extends ProtobufProcessor {
 
         final FlowFile flowfile = session.get();
 
+        // We check if the protobuf.schemaPath property is defined in the flowfile
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
+
         String messageType = flowfile.getAttribute("protobuf.messageType");
 
 
         if (protobufSchema == null && this.schema == null) {
-            getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() + " property.");
+            getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() +
+                    " property, either at processor or flowfile level..");
             session.transfer(flowfile, INVALID_SCHEMA);
         } else if (messageType == null) {
             getLogger().error("Unable to find the message type in protobuf.messageType, unable to decode data.");
             session.transfer(flowfile, ERROR);
         } else {
 
-            // To write the results back out ot flow file
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
+                    // If the protobufSchema property is defined, we use the schema from the flowfile instead of the
+                    // processor-wide one
                     if (protobufSchema == null) {
-                        ProtobufService.encodeProtobuf(this.schema, compileSchema, messageType, in, out);
+                        ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
                     } else {
                         ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
                     }
@@ -99,56 +99,6 @@ public class ProtobufEncoder extends ProtobufProcessor {
                 session.transfer(flowfile, error.get());
             } else {
                 session.transfer(outputFlowfile, SUCCESS);
-            }
-        }
-    }
-
-    @Override
-    public Set<Relationship> getRelationships() {
-        return relationships;
-    }
-
-    @Override
-    public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
-        return properties;
-    }
-
-    /**
-     * Compile the given schema file when the protobuf.schema property is given
-     *
-     * @see AbstractProcessor
-     */
-    @Override
-    public void onPropertyModified(PropertyDescriptor descriptor, String oldValue, String newValue) {
-        super.onPropertyModified(descriptor, oldValue, newValue);
-
-        if (descriptor != PROTOBUF_SCHEMA) return;
-
-        // If the property is unset, just delete the existing descriptor
-        if (newValue == null || newValue.isEmpty()) {
-            this.schema = null;
-            return;
-        }
-
-        if (!newValue.equals(oldValue)) {
-            // First drop the old schema
-            this.schema = null;
-
-            // Compile the new schema
-            FileInputStream schemaFile;
-            try {
-                schemaFile = new FileInputStream(newValue);
-            } catch (FileNotFoundException e) {
-                getLogger().error("File " + newValue + " not found on the disk.", e);
-                return;
-            }
-
-            try {
-                this.schema = DynamicSchema.parseFrom(schemaFile);
-            } catch (Descriptors.DescriptorValidationException e) {
-                getLogger().error("Invalid schema file: " + e.getMessage(), e);
-            } catch (IOException e) {
-                getLogger().error("Unable to read file: " + e.getMessage(), e);
             }
         }
     }

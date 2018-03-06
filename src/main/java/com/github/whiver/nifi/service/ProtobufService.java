@@ -41,7 +41,6 @@ public class ProtobufService {
     /**
      * Handle all the logic leading to the decoding of a Protobuf-encoded binary given a schema file path.
      * @param schema  Schema used to decode the binary data
-     * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
      * @param encodedData   Encoded data source
      * @return  A JSON representation of the data, contained in a Java String
@@ -51,7 +50,7 @@ public class ProtobufService {
      * @throws MessageDecodingException Thrown when an error occurs during the binary decoding
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static String decodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, InputStream encodedData) throws InvalidProtocolBufferException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException {
+    public static String decodeProtobuf(DynamicSchema schema, String messageType, InputStream encodedData) throws InvalidProtocolBufferException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException {
         Descriptors.Descriptor descriptor;
         DynamicMessage message;
 
@@ -84,14 +83,13 @@ public class ProtobufService {
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
     public static String decodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, InputStream encodedData) throws IOException, Descriptors.DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
-        return decodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, encodedData);
+        return decodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), messageType, encodedData);
     }
 
     /**
      * Handle all the logic leading to the encoding of a Protobuf-encoded binary given a schema file path and a JSON
      * data file.
      * @param schema  Schema object to use to encode binary data
-     * @param compileSchema true if the given schema is still in raw .proto format
      * @param messageType   Type of Protobuf Message
      * @param jsonData      Data to encode, structured in a JSON format
      * @param binaryOutput  The stream where to output the encoded data
@@ -101,7 +99,7 @@ public class ProtobufService {
      * @throws UnknownMessageTypeException  Thrown when the given message type is not contained in the schema
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
-    public static void encodeProtobuf(DynamicSchema schema, boolean compileSchema, String messageType, InputStream jsonData, OutputStream binaryOutput) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException {
+    public static void encodeProtobuf(DynamicSchema schema, String messageType, InputStream jsonData, OutputStream binaryOutput) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException {
         Descriptors.Descriptor descriptor;
         Message message;
 
@@ -142,6 +140,6 @@ public class ProtobufService {
      * @throws SchemaLoadingException   Thrown when an error occurs while reading the schema file
      */
     public static void encodeProtobuf(String pathToSchema, boolean compileSchema, String messageType, InputStream jsonData, OutputStream binaryOutput) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, SchemaCompilationException, InterruptedException {
-        encodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), compileSchema, messageType, jsonData, binaryOutput);
+        encodeProtobuf(SchemaParser.parseSchema(pathToSchema, compileSchema), messageType, jsonData, binaryOutput);
     }
 }
