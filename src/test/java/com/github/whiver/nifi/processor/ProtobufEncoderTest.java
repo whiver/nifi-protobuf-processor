@@ -88,6 +88,31 @@ public class ProtobufEncoderTest {
     }
 
     /**
+     * Test encoding valid files given an already compiled schema specified at processor level
+     * @throws Exception
+     */
+    @Test
+    public void onTriggerEncodeValidFilesWithSchemaAtProcessorLevel() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
+
+        InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(jsonFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The Person flowfile should be returned to success", 1, results.size());
+        results.get(0).assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.data"));
+    }
+
+    /**
      * Test encoding valid files given an uncompiled .proto schema specified at flowfile level
      * @throws Exception
      */
@@ -232,5 +257,36 @@ public class ProtobufEncoderTest {
         result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
         result.assertContentEquals(ProtobufEncoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"));
 
+    }
+
+    /**
+     * Ensure we can still encode properly when switching between a raw or precompiled schema at processor level
+     */
+    @Test
+    public void onPropertyModifiedEncodeFileUsingSchemaAtProcessorLevel() {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json"), personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
+
+        runner.enqueue(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json"), personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufEncoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufEncoder.SUCCESS);
+        Assert.assertEquals("The 2 flowfiles should be returned to success", 2, results.size());
     }
 }

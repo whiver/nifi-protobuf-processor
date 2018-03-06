@@ -88,6 +88,34 @@ public class ProtobufDecoderTest {
     }
 
     /**
+     * Test encoding valid files given an already compiled schema specified at processor level
+     * @throws Exception
+     */
+    @Test
+    public void onTriggerDecodeValidFilesWithSchemaAtProcessorLevel() throws Exception {
+        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+
+        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        HashMap<String, String> personProperties = new HashMap<>();
+        personProperties.put("protobuf.messageType", "Person");
+        runner.enqueue(dataFile, personProperties);
+
+        runner.assertValid();
+        runner.run(1);
+        runner.assertQueueEmpty();
+
+        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
+        JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
+        Assert.assertEquals("The parsing result of Person.data is not as expected", expected, given);
+    }
+
+    /**
      * Test decoding valid files given an uncompiled .proto schema specified at flowfile level
      * @throws Exception
      */
