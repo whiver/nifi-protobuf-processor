@@ -3,8 +3,6 @@ An Apache NiFi processor to encode and decode data using Google Protocol Buffers
 
 ## Features
 
-As this processor is a work-in-progress, the features already implemented and tested are checked.
-
 - Encode/decode Protocol Buffer messages from/to JSON format
 - Read a compiled schema file (`.desc`) from disk
 - Use directly a raw `.proto` schema file, from disk or directly embedded in a property
