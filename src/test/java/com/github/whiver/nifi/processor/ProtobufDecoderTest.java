@@ -32,6 +32,7 @@ import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -56,8 +57,8 @@ public class ProtobufDecoderTest {
 
         // AddressBook test
         HashMap<String, String> addressBookProperties = new HashMap<>();
-        addressBookProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
-        addressBookProperties.put("protobuf.messageType", "AddressBook");
+        addressBookProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        addressBookProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "AddressBook");
 
         // AddressBook test
         for (String filename: validTestFiles) {
@@ -94,12 +95,12 @@ public class ProtobufDecoderTest {
     @Test
     public void onTriggerDecodeValidFilesWithSchemaAtProcessorLevel() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
 
         InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.messageType", "Person");
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
         runner.assertValid();
@@ -122,12 +123,12 @@ public class ProtobufDecoderTest {
     @Test
     public void onTriggerCompileFlowfileSchemaAndDecodeValidFiles() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
 
         InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
-        personProperties.put("protobuf.messageType", "Person");
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
         runner.assertValid();
@@ -150,12 +151,13 @@ public class ProtobufDecoderTest {
     @Test
     public void onTriggerCompileProcessorSchemaAndDecodeValidFiles() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        //runner.setProperty(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE, "Person");
 
         InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.messageType", "Person");
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
         runner.assertValid();
@@ -182,8 +184,8 @@ public class ProtobufDecoderTest {
 
         InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
-        personProperties.put("protobuf.messageType", "Person");
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
         runner.assertValid();
@@ -215,7 +217,7 @@ public class ProtobufDecoderTest {
             First try to decode using a schema set in a processor property
          */
 
-        runner.setProperty("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
         runner.assertValid();
 
         runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
@@ -239,8 +241,8 @@ public class ProtobufDecoderTest {
          */
 
         runner.clearTransferState();
-        runner.removeProperty(runner.getProcessor().getPropertyDescriptor("protobuf.schemaPath"));
-        Assert.assertFalse("The schema property should now be null", runner.getProcessContext().getProperty("protobuf.schemaPath").isSet());
+        runner.removeProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA);
+        Assert.assertFalse("The schema property should now be null", runner.getProcessContext().getProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA).isSet());
         runner.assertValid();
 
         runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
@@ -257,7 +259,7 @@ public class ProtobufDecoderTest {
          */
 
         runner.clearTransferState();
-        runner.setProperty("protobuf.schemaPath", ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
         runner.assertValid();
 
         runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);

@@ -47,8 +47,8 @@ public class ProtobufEncoderTest {
     @Test
     public void initDefaultPropertiesValues() {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        Assert.assertFalse("Default value for COMPILE_SCHEMA should be false", runner.getProcessContext().getProperty(ProtobufProcessor.COMPILE_SCHEMA.getName()).asBoolean());
-        Assert.assertNull("Default value for PROTOBUF_SCHEMA should be null", runner.getProcessContext().getProperty(ProtobufProcessor.PROTOBUF_SCHEMA).getValue());
+        Assert.assertFalse("Default value for COMPILE_SCHEMA should be false", runner.getProcessContext().getProperty(AbstractProtobufProcessor.COMPILE_SCHEMA.getName()).asBoolean());
+        Assert.assertNull("Default value for PROTOBUF_SCHEMA should be null", runner.getProcessContext().getProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA).getValue());
     }
 
     /**
@@ -94,8 +94,8 @@ public class ProtobufEncoderTest {
     @Test
     public void onTriggerEncodeValidFilesWithSchemaAtProcessorLevel() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
 
         InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
         HashMap<String, String> personProperties = new HashMap<>();
@@ -119,7 +119,7 @@ public class ProtobufEncoderTest {
     @Test
     public void onTriggerCompileFlowfileSchemaAndEncodeValidFiles() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
 
         InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
         HashMap<String, String> personProperties = new HashMap<>();
@@ -144,8 +144,8 @@ public class ProtobufEncoderTest {
     @Test
     public void onTriggerCompileProcessorSchemaAndEncodeValidFiles() throws Exception {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
 
         InputStream jsonFile = ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json");
         HashMap<String, String> personProperties = new HashMap<>();
@@ -265,8 +265,8 @@ public class ProtobufEncoderTest {
     @Test
     public void onPropertyModifiedEncodeFileUsingSchemaAtProcessorLevel() {
         TestRunner runner = TestRunners.newTestRunner(new ProtobufEncoder());
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "true");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.proto").getPath());
 
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put("protobuf.messageType", "Person");
@@ -276,8 +276,8 @@ public class ProtobufEncoderTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        runner.setProperty(ProtobufProcessor.COMPILE_SCHEMA, "false");
-        runner.setProperty(ProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "false");
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufEncoderTest.class.getResource("/schemas/Person.desc").getPath());
 
         runner.enqueue(ProtobufEncoderTest.class.getResourceAsStream("/data/Person.json"), personProperties);
 
