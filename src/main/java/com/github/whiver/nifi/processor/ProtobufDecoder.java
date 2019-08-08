@@ -35,7 +35,7 @@ import com.google.protobuf.Descriptors.DescriptorValidationException;
 import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
-import org.apache.nifi.annotation.documentation.Tags;
+import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
@@ -48,19 +48,21 @@ import java.util.concurrent.atomic.AtomicReference;
 
 
 @SideEffectFree
-@Tags({"Protobuf", "decoder", "Google Protocol Buffer"})
-@CapabilityDescription("Decode incoming data encoded using a Google Protocol Buffer Schema.")
-public class ProtobufDecoder extends ProtobufProcessor {
+@SeeAlso(ProtobufEncoder.class)
+@CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
+public class ProtobufDecoder extends AbstractProtobufProcessor {
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
         final AtomicReference<Relationship> error = new AtomicReference<>();
 
-        final FlowFile flowfile = session.get();
+        FlowFile flowfile = session.get();
 
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
-        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
-        String messageType = flowfile.getAttribute("protobuf.messageType");
+
+        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA).evaluateAttributeExpressions().asBoolean();
+        String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
+        final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
 
         if (protobufSchema == null && this.schema == null) {
             getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() +
