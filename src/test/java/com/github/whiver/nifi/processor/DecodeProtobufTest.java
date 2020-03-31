@@ -32,7 +32,6 @@ import org.apache.nifi.util.MockFlowFile;
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
 import org.junit.Assert;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ import java.util.List;
 /**
  * A test class mocking a NiFi flow
  */
-public class ProtobufDecoderTest {
+public class DecodeProtobufTest {
     private final String[] validTestFiles = {"AddressBook_basic", "AddressBook_several"};
 
     /**
@@ -53,16 +52,16 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onTriggerDecodeValidFiles() throws IOException {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
 
         // AddressBook test
         HashMap<String, String> addressBookProperties = new HashMap<>();
-        addressBookProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        addressBookProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), DecodeProtobufTest.class.getResource("/schemas/AddressBook.desc").getPath());
         addressBookProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "AddressBook");
 
         // AddressBook test
         for (String filename: validTestFiles) {
-            InputStream jsonFile = ProtobufDecoderTest.class.getResourceAsStream("/data/" + filename + ".data");
+            InputStream jsonFile = DecodeProtobufTest.class.getResourceAsStream("/data/" + filename + ".data");
             addressBookProperties.put("testfile", filename);
             runner.enqueue(jsonFile, addressBookProperties);
         }
@@ -75,7 +74,7 @@ public class ProtobufDecoderTest {
         runner.assertQueueEmpty();
 
         // Check if the data was processed without failure
-        List<MockFlowFile> results = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS);
+        List<MockFlowFile> results = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS);
         Assert.assertEquals("All flowfiles should be returned to success", validTestFiles.length, results.size());
 
         // Check if the content of the flowfile is as expected
@@ -94,11 +93,11 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onTriggerDecodeValidFilesWithSchemaAtProcessorLevel() throws Exception {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
         runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "false");
-        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, DecodeProtobufTest.class.getResource("/schemas/Person.desc").getPath());
 
-        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        InputStream dataFile = DecodeProtobufTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
@@ -107,8 +106,8 @@ public class ProtobufDecoderTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
-        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
@@ -122,12 +121,12 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onTriggerCompileFlowfileSchemaAndDecodeValidFiles() throws Exception {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
         runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
 
-        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        InputStream dataFile = DecodeProtobufTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), DecodeProtobufTest.class.getResource("/schemas/Person.proto").getPath());
         personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
@@ -135,8 +134,8 @@ public class ProtobufDecoderTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
-        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
@@ -150,12 +149,12 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onTriggerCompileProcessorSchemaAndDecodeValidFiles() throws Exception {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
         runner.setProperty(AbstractProtobufProcessor.COMPILE_SCHEMA, "true");
-        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/Person.proto").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, DecodeProtobufTest.class.getResource("/schemas/Person.proto").getPath());
         //runner.setProperty(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE, "Person");
 
-        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        InputStream dataFile = DecodeProtobufTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
         personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
@@ -164,8 +163,8 @@ public class ProtobufDecoderTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
-        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
@@ -179,12 +178,12 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onTriggerUsePerFlowfileSchemaIfAvailable() throws IOException {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
-        runner.setProperty("protobuf.schemaPath", ProtobufEncoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
+        runner.setProperty("protobuf.schemaPath", EncodeProtobufTest.class.getResource("/schemas/AddressBook.desc").getPath());
 
-        InputStream dataFile = ProtobufDecoderTest.class.getResourceAsStream("/data/Person.data");
+        InputStream dataFile = DecodeProtobufTest.class.getResourceAsStream("/data/Person.data");
         HashMap<String, String> personProperties = new HashMap<>();
-        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/Person.desc").getPath());
+        personProperties.put(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), DecodeProtobufTest.class.getResource("/schemas/Person.desc").getPath());
         personProperties.put(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE.getName(), "Person");
         runner.enqueue(dataFile, personProperties);
 
@@ -192,8 +191,8 @@ public class ProtobufDecoderTest {
         runner.run(1);
         runner.assertQueueEmpty();
 
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
-        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
+        MockFlowFile result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
 
         ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/Person.json"));
@@ -207,7 +206,7 @@ public class ProtobufDecoderTest {
      */
     @Test
     public void onPropertyModified() throws Exception {
-        TestRunner runner = TestRunners.newTestRunner(new ProtobufDecoder());
+        TestRunner runner = TestRunners.newTestRunner(new DecodeProtobuf());
 
         HashMap<String, String> addressBookProperties = new HashMap<>();
         addressBookProperties.put("protobuf.messageType", "AddressBook");
@@ -217,19 +216,19 @@ public class ProtobufDecoderTest {
             First try to decode using a schema set in a processor property
          */
 
-        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA.getName(), DecodeProtobufTest.class.getResource("/schemas/AddressBook.desc").getPath());
         runner.assertValid();
 
-        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+        runner.enqueue(DecodeProtobufTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
 
         runner.run(1);
 
         // Check if the flowfile has been successfully processed
         runner.assertQueueEmpty();
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
 
         // Finally check the content
-        MockFlowFile result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        MockFlowFile result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
         ObjectMapper mapper = new ObjectMapper();
         JsonNode expected = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
         JsonNode given = mapper.readTree(runner.getContentAsByteArray(result));
@@ -245,13 +244,13 @@ public class ProtobufDecoderTest {
         Assert.assertFalse("The schema property should now be null", runner.getProcessContext().getProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA).isSet());
         runner.assertValid();
 
-        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+        runner.enqueue(DecodeProtobufTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
 
         runner.run(1);
 
         // Check if the flowfile has been successfully processed
         runner.assertQueueEmpty();
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.INVALID_SCHEMA);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.INVALID_SCHEMA);
 
 
         /*
@@ -259,19 +258,19 @@ public class ProtobufDecoderTest {
          */
 
         runner.clearTransferState();
-        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, ProtobufDecoderTest.class.getResource("/schemas/AddressBook.desc").getPath());
+        runner.setProperty(AbstractProtobufProcessor.PROTOBUF_SCHEMA, DecodeProtobufTest.class.getResource("/schemas/AddressBook.desc").getPath());
         runner.assertValid();
 
-        runner.enqueue(ProtobufDecoderTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
+        runner.enqueue(DecodeProtobufTest.class.getResourceAsStream("/data/AddressBook_basic.data"), addressBookProperties);
 
         runner.run(1);
 
         // Check if the flowfile has been successfully processed
         runner.assertQueueEmpty();
-        runner.assertAllFlowFilesTransferred(ProtobufDecoder.SUCCESS);
+        runner.assertAllFlowFilesTransferred(DecodeProtobuf.SUCCESS);
 
         // Finally check the content
-        result = runner.getFlowFilesForRelationship(ProtobufDecoder.SUCCESS).get(0);
+        result = runner.getFlowFilesForRelationship(DecodeProtobuf.SUCCESS).get(0);
         expected = mapper.readTree(this.getClass().getResourceAsStream("/data/AddressBook_basic.json"));
         given = mapper.readTree(runner.getContentAsByteArray(result));
         Assert.assertEquals("The parsing result of AddressBook_basic.data is not as expected", expected, given);

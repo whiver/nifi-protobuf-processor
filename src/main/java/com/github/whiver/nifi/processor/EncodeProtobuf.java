@@ -45,9 +45,9 @@ import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SideEffectFree
-@SeeAlso(ProtobufDecoder.class)
+@SeeAlso(DecodeProtobuf.class)
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
-public class ProtobufEncoder extends AbstractProtobufProcessor {
+public class EncodeProtobuf extends AbstractProtobufProcessor {
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
