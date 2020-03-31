@@ -55,6 +55,10 @@ public class EncodeProtobuf extends AbstractProtobufProcessor {
 
         final FlowFile flowfile = session.get();
 
+        if (flowfile == null) {
+            return;
+        }
+
         // We check if the protobuf.schemaPath property is defined in the flowfile
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 

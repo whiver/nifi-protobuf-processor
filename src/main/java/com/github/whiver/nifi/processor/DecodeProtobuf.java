@@ -58,6 +58,10 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
 
         FlowFile flowfile = session.get();
 
+        if (flowfile == null) {
+            return;
+        }
+
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA).evaluateAttributeExpressions().asBoolean();
