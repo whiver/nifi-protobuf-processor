@@ -26,14 +26,16 @@
 
 package com.github.whiver.nifi.processor;
 
-
+import com.github.whiver.nifi.exception.MessageDecodingException;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
+import com.github.whiver.nifi.exception.UnknownMessageTypeException;
 import com.github.whiver.nifi.service.ProtobufService;
-import com.google.protobuf.Descriptors;
+import com.google.protobuf.Descriptors.DescriptorValidationException;
+import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
-import org.apache.nifi.annotation.documentation.Tags;
+import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
@@ -44,23 +46,27 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicReference;
 
+
 @SideEffectFree
-@Tags({"Protobuf", "decoder", "Google Protocol Buffer"})
-@CapabilityDescription("Decode incoming data encoded using a Google Protocol Buffer Schema.")
-public class ProtobufEncoder extends ProtobufProcessor {
+@SeeAlso(EncodeProtobuf.class)
+@CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
+public class DecodeProtobuf extends AbstractProtobufProcessor {
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
         final AtomicReference<Relationship> error = new AtomicReference<>();
 
-        final FlowFile flowfile = session.get();
+        FlowFile flowfile = session.get();
 
-        // We check if the protobuf.schemaPath property is defined in the flowfile
+        if (flowfile == null) {
+            return;
+        }
+
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
-        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
 
-        String messageType = flowfile.getAttribute("protobuf.messageType");
-
+        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA).evaluateAttributeExpressions().asBoolean();
+        String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
+        final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
 
         if (protobufSchema == null && this.schema == null) {
             getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() +
@@ -71,27 +77,28 @@ public class ProtobufEncoder extends ProtobufProcessor {
             session.transfer(flowfile, ERROR);
         } else {
 
+            // Write the results back out ot flow file
             FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
                 try {
-                    // If the protobufSchema property is defined, we use the schema from the flowfile instead of the
-                    // processor-wide one
                     if (protobufSchema == null) {
-                        ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+                        out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in).getBytes());
                     } else {
-                        ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
+                        out.write(ProtobufService.decodeProtobuf(protobufSchema, compileSchema, messageType, in).getBytes());
                     }
-                } catch (Descriptors.DescriptorValidationException e) {
+                } catch (DescriptorValidationException e) {
                     getLogger().error("Invalid schema file: " + e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
                 } catch (SchemaLoadingException | SchemaCompilationException e) {
                     getLogger().error(e.getMessage(), e);
                     error.set(INVALID_SCHEMA);
+                } catch (UnknownMessageTypeException | MessageDecodingException e) {
+                    getLogger().error(e.getMessage());
+                    error.set(ERROR);
+                } catch (InvalidProtocolBufferException e) {
+                    getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
+                    error.set(ERROR);
                 } catch (InterruptedException e) {
-                    getLogger().error("Unable to compile schema: " + e.getMessage(), e);
-                    error.set(ERROR);
-                } catch (Exception e) {
-                    getLogger().error(e.getMessage(), e);
-                    error.set(ERROR);
+                    e.printStackTrace();
                 }
             });
 

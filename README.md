@@ -3,22 +3,12 @@ An Apache NiFi processor to encode and decode data using Google Protocol Buffers
 
 ## Features
 
-As this processor is a work-in-progress, the features already implemented and tested are checked.
-
-### Main functionalities
-- [x] Graphical configuration interface in Apache NiFi
-- [x] Encode a JSON payload to Protocol Buffers
-- [x] Decode a Protocol Buffers payload to JSON
-- [x] Support dependencies in proto files (see [below](#usage))
-- [ ] Allow to encode/decode from/to XML, JSON and flowfile properties
-
-### Protobuf schema specification
-- [x] Support compiled schema at a specified user location on the disk
-- [ ] Support compiled schema embedded in the flowfile
-- [x] Support embedding raw .proto files in the flowfile
-
-### Processor packaging
-- [x] Provide a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
+- Encode/decode Protocol Buffer messages from/to JSON format
+- Read a compiled schema file (`.desc`) from disk
+- Use directly a raw `.proto` schema file, from disk or directly embedded in a property
+- Can handle embedded `.proto` files at processor level (as a processor property) or directly in a flowfile property
+- Support dependencies in proto files (see [below](#usage))
+- Provide a ready-to-use Docker image of Apache NiFi with the NiFi Protobuf Processor
 
 ## Installation
 
@@ -79,6 +69,19 @@ However, if you cannot compile your `.proto` file, you can set it directly as a 
 
 For now, the only structured format the processors can process is the JSON. In the future, there should be more formats
 available (XML and flowfile properties are expected).
+
+### Performances
+
+By design, this processor cannot use precompiled code to handle messages (otherwise you would have already generated them)
+and wouldn't be here. So this processor is using the runtime part of the Protobuf library, which dynamically parses the files,
+given a compiled schema (`.desc`).
+
+For convenience, the processor also allows you to provide a raw `.proto` file but, to be used, it must be compiled, so this
+is what the processor does before anything else. To avoid multiple compilation when not needed, the result file is cached,
+and if you specified the schema in the processor configuration (and not in the flowfile properties), it will be directly
+reused for each operation, and it will even avoid reading the schema from the disk.
+
+So, if you can, *specify the schema at the processor level to get the best performances*.
 
 ## Contributing
 
