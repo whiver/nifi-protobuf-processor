@@ -58,6 +58,11 @@ public class ProtobufDecoder extends ProtobufProcessor {
 
         final FlowFile flowfile = session.get();
 
+        //it could be that another thread already got the flowfile -> Leave the function
+        if(flowfile == null) {
+        	return;
+        }
+
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA.getName()).asBoolean();
         String messageType = flowfile.getAttribute("protobuf.messageType");

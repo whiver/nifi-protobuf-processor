@@ -54,6 +54,10 @@ public class ProtobufEncoder extends ProtobufProcessor {
         final AtomicReference<Relationship> error = new AtomicReference<>();
 
         final FlowFile flowfile = session.get();
+      //it could be that another thread already got the flowfile -> Leave the function
+        if(flowfile == null) {
+        	return;
+        }
 
         // We check if the protobuf.schemaPath property is defined in the flowfile
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
