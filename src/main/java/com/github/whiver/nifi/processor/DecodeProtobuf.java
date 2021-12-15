@@ -26,6 +26,7 @@
 
 package com.github.whiver.nifi.processor;
 
+import com.apple.foundationdb.tuple.ByteArrayUtil;
 import com.github.whiver.nifi.exception.MessageDecodingException;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
@@ -36,21 +37,58 @@ import com.google.protobuf.InvalidProtocolBufferException;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
+import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.Validator;
+import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
+import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
+import org.apache.nifi.processor.util.StandardValidators;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.jar.Attributes;
 
 
 @SideEffectFree
 @SeeAlso(EncodeProtobuf.class)
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
 public class DecodeProtobuf extends AbstractProtobufProcessor {
+    static final PropertyDescriptor DEMARCATOR = new PropertyDescriptor.Builder()
+            .name("demarcator")
+            .displayName("Demarcator")
+            .required(false)
+            .description("This property is used to consume messages separated by a demarcator")
+            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
+            .addValidator(Validator.VALID)
+            .build();
+
+    static final PropertyDescriptor PRESERVE_FIELD_NAMES = new PropertyDescriptor.Builder()
+            .name("preserve_field_names")
+            .displayName("Preserve Original Proto Field Names")
+            .required(true)
+            .defaultValue("false")
+            .description("Whether to preserve original proto field names. If not, fields like field_name would be converted to camel case fieldName.")
+            .addValidator(StandardValidators.BOOLEAN_VALIDATOR)
+            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
+            .build();
+
+    @Override
+    public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
+        List<PropertyDescriptor> list = new LinkedList<>(super.getSupportedPropertyDescriptors());
+        list.add(DEMARCATOR);
+        list.add(PRESERVE_FIELD_NAMES);
+        return list;
+    }
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
@@ -62,11 +100,14 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
             return;
         }
 
+        String demarcator = processContext.getProperty(DEMARCATOR).evaluateAttributeExpressions(flowfile).getValue();
+
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 
         boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA).evaluateAttributeExpressions().asBoolean();
         String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
         final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
+        final boolean preserveFieldNames = processContext.getProperty(PRESERVE_FIELD_NAMES).evaluateAttributeExpressions(flowfile).asBoolean();
 
         if (protobufSchema == null && this.schema == null) {
             getLogger().error("No schema path given, please fill in the " + PROTOBUF_SCHEMA.getName() +
@@ -78,35 +119,87 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
         } else {
 
             // Write the results back out ot flow file
-            FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
-                try {
-                    if (protobufSchema == null) {
-                        out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in).getBytes());
-                    } else {
-                        out.write(ProtobufService.decodeProtobuf(protobufSchema, compileSchema, messageType, in).getBytes());
-                    }
-                } catch (DescriptorValidationException e) {
-                    getLogger().error("Invalid schema file: " + e.getMessage(), e);
-                    error.set(INVALID_SCHEMA);
-                } catch (SchemaLoadingException | SchemaCompilationException e) {
-                    getLogger().error(e.getMessage(), e);
-                    error.set(INVALID_SCHEMA);
-                } catch (UnknownMessageTypeException | MessageDecodingException e) {
-                    getLogger().error(e.getMessage());
-                    error.set(ERROR);
-                } catch (InvalidProtocolBufferException e) {
-                    getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
-                    error.set(ERROR);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-            });
+            FlowFile outputFlowfile;
+
+            if (demarcator == null || demarcator.isEmpty()) {
+                outputFlowfile = processSingleFlowFile(session, error, flowfile, protobufSchema, compileSchema, messageType, preserveFieldNames);
+            } else {
+                outputFlowfile = processBatch(session, error, flowfile, protobufSchema, compileSchema, messageType, demarcator, preserveFieldNames);
+            }
 
             if (error.get() != null) {
                 session.transfer(flowfile, error.get());
             } else {
+                outputFlowfile = session.putAttribute(outputFlowfile, CoreAttributes.MIME_TYPE.key(), "application/json");
                 session.transfer(outputFlowfile, SUCCESS);
             }
         }
+    }
+
+    private FlowFile processBatch(ProcessSession session,
+                                  AtomicReference<Relationship> error,
+                                  FlowFile flowfile,
+                                  String protobufSchema,
+                                  boolean compileSchema,
+                                  String messageType,
+                                  String demarcator,
+                                  boolean preserveFieldNames) {
+        return session.write(flowfile, (in, out) -> {
+            try {
+                byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
+                byte[] batch = new byte[(int) flowfile.getSize()];
+                in.read(batch);
+                in.close();
+                List<byte[]> messages = ByteArrayUtil.split(batch, demarcatorBytes);
+                out.write('[');
+                Iterator<byte[]> iterator = messages.iterator();
+                while (iterator.hasNext()) {
+                    processMessage(protobufSchema, compileSchema, messageType, preserveFieldNames, iterator.next(), out);
+                    if (iterator.hasNext()) {
+                        out.write(',');
+                    }
+                }
+                out.write(']');
+            } catch (Exception e) {
+                getLogger().error("encountered error while processing batch:", e);
+                error.set(ERROR);
+            }
+        });
+    }
+
+    private FlowFile processSingleFlowFile(ProcessSession session,
+                                           AtomicReference<Relationship> error,
+                                           FlowFile flowfile,
+                                           String protobufSchema,
+                                           boolean compileSchema,
+                                           String messageType,
+                                           boolean preserveFieldNames) {
+        return session.write(flowfile, (InputStream in, OutputStream out) -> {
+            try {
+                processMessage(protobufSchema, compileSchema, messageType, preserveFieldNames, in, out);
+            } catch (DescriptorValidationException e) {
+                getLogger().error("Invalid schema file: " + e.getMessage(), e);
+                error.set(INVALID_SCHEMA);
+            } catch (SchemaLoadingException | SchemaCompilationException e) {
+                getLogger().error(e.getMessage(), e);
+                error.set(INVALID_SCHEMA);
+            } catch (UnknownMessageTypeException | MessageDecodingException e) {
+                getLogger().error(e.getMessage());
+                error.set(ERROR);
+            } catch (InvalidProtocolBufferException e) {
+                getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
+                error.set(ERROR);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+    }
+
+    private void processMessage(String protobufSchema, boolean compileSchema, String messageType, boolean preserveFieldNames, InputStream in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
+        out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in, preserveFieldNames).getBytes());
+    }
+
+    private void processMessage(String protobufSchema, boolean compileSchema, String messageType, boolean preserveFieldNames, byte[] in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
+        out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in, preserveFieldNames).getBytes());
     }
 }

@@ -38,11 +38,15 @@ public class JSONMapper {
     /**
      * Format a Protocol Buffers Message to a JSON string
      * @param data  The Message to be formatted
+     * @param preserveFieldNames whether to preserve original field names
      * @return  A JSON String representing the data
      * @throws InvalidProtocolBufferException   Thrown in case of invalid Message data
      */
-    public static String toJSON(Message data) throws InvalidProtocolBufferException {
+    public static String toJSON(Message data, boolean preserveFieldNames) throws InvalidProtocolBufferException {
         JsonFormat.Printer printer = JsonFormat.printer();
+        if (preserveFieldNames) {
+            printer = printer.preservingProtoFieldNames();
+        }
         return printer.print(data);
     }
 

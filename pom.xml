@@ -30,6 +30,11 @@
             <version>3.9.0</version>
         </dependency>
         <dependency>
+            <groupId>org.foundationdb</groupId>
+            <artifactId>fdb-java</artifactId>
+            <version>6.2.10</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.os72</groupId>
             <artifactId>protobuf-dynamic</artifactId>
             <version>1.0.0</version>
@@ -70,6 +75,16 @@
             <groupId>com.github.os72</groupId>
             <artifactId>protoc-jar</artifactId>
             <version>3.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>1.11.0</version>
         </dependency>
     </dependencies>
 
