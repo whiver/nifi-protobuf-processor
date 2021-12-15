@@ -45,8 +45,9 @@ and everything should be fine ! :)
 See the installation section to learn how to integrate this processor in Apache NiFi.
 This projects add 2 different new processors in NiFi:
 
-- `ProtobufDecoder`, which **decodes** a Protobuf-encoded payload to different kind of structured formats ;
-- `ProtobufEncoder`, which **encodes** a payload in a structured format using a Protobuf schema.
+- `DecodeProtobuf`, which **decodes** a Protobuf-encoded payload to different kind of structured formats.
+- `EncodeProtobuf`, which **encodes** a payload in a structured format using a Protobuf schema.
+- `ConvertProtobufToAvro` which decodes a Protobuf-encoded payload into Avro.
 
 ### Specifying the schema file
 In both processors, you have to specify a schema file to use for data encoding/decoding. You can do so either
