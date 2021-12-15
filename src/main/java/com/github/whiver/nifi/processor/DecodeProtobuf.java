@@ -56,7 +56,6 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.jar.Attributes;
 
 
 @SideEffectFree
@@ -104,7 +103,6 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
 
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 
-        boolean compileSchema = processContext.getProperty(COMPILE_SCHEMA).evaluateAttributeExpressions().asBoolean();
         String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
         final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
         final boolean preserveFieldNames = processContext.getProperty(PRESERVE_FIELD_NAMES).evaluateAttributeExpressions(flowfile).asBoolean();
@@ -122,9 +120,9 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
             FlowFile outputFlowfile;
 
             if (demarcator == null || demarcator.isEmpty()) {
-                outputFlowfile = processSingleFlowFile(session, error, flowfile, protobufSchema, compileSchema, messageType, preserveFieldNames);
+                outputFlowfile = processSingleFlowFile(session, error, flowfile, messageType, preserveFieldNames);
             } else {
-                outputFlowfile = processBatch(session, error, flowfile, protobufSchema, compileSchema, messageType, demarcator, preserveFieldNames);
+                outputFlowfile = processBatch(session, error, flowfile, messageType, demarcator, preserveFieldNames);
             }
 
             if (error.get() != null) {
@@ -139,8 +137,6 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
     private FlowFile processBatch(ProcessSession session,
                                   AtomicReference<Relationship> error,
                                   FlowFile flowfile,
-                                  String protobufSchema,
-                                  boolean compileSchema,
                                   String messageType,
                                   String demarcator,
                                   boolean preserveFieldNames) {
@@ -154,7 +150,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
                 out.write('[');
                 Iterator<byte[]> iterator = messages.iterator();
                 while (iterator.hasNext()) {
-                    processMessage(protobufSchema, compileSchema, messageType, preserveFieldNames, iterator.next(), out);
+                    processMessage(messageType, preserveFieldNames, iterator.next(), out);
                     if (iterator.hasNext()) {
                         out.write(',');
                     }
@@ -170,13 +166,11 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
     private FlowFile processSingleFlowFile(ProcessSession session,
                                            AtomicReference<Relationship> error,
                                            FlowFile flowfile,
-                                           String protobufSchema,
-                                           boolean compileSchema,
                                            String messageType,
                                            boolean preserveFieldNames) {
         return session.write(flowfile, (InputStream in, OutputStream out) -> {
             try {
-                processMessage(protobufSchema, compileSchema, messageType, preserveFieldNames, in, out);
+                processMessage(messageType, preserveFieldNames, in, out);
             } catch (DescriptorValidationException e) {
                 getLogger().error("Invalid schema file: " + e.getMessage(), e);
                 error.set(INVALID_SCHEMA);
@@ -195,11 +189,11 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
         });
     }
 
-    private void processMessage(String protobufSchema, boolean compileSchema, String messageType, boolean preserveFieldNames, InputStream in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
+    private void processMessage(String messageType, boolean preserveFieldNames, InputStream in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
         out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in, preserveFieldNames).getBytes());
     }
 
-    private void processMessage(String protobufSchema, boolean compileSchema, String messageType, boolean preserveFieldNames, byte[] in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
+    private void processMessage(String messageType, boolean preserveFieldNames, byte[] in, OutputStream out) throws IOException, DescriptorValidationException, UnknownMessageTypeException, MessageDecodingException, SchemaLoadingException, InterruptedException, SchemaCompilationException {
         out.write(ProtobufService.decodeProtobuf(this.schema, messageType, in, preserveFieldNames).getBytes());
     }
 }
