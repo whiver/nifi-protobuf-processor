@@ -119,17 +119,16 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
             // Write the results back out ot flow file
             FlowFile outputFlowfile;
 
-            if (demarcator == null || demarcator.isEmpty()) {
-                outputFlowfile = processSingleFlowFile(session, error, flowfile, messageType, preserveFieldNames);
-            } else {
-                outputFlowfile = processBatch(session, error, flowfile, messageType, demarcator, preserveFieldNames);
-            }
-
-            if (error.get() != null) {
-                session.transfer(flowfile, error.get());
-            } else {
+            try {
+                if (demarcator == null || demarcator.isEmpty()) {
+                    outputFlowfile = processSingleFlowFile(session, error, flowfile, messageType, preserveFieldNames);
+                } else {
+                    outputFlowfile = processBatch(session, error, flowfile, messageType, demarcator, preserveFieldNames);
+                }
                 outputFlowfile = session.putAttribute(outputFlowfile, CoreAttributes.MIME_TYPE.key(), "application/json");
                 session.transfer(outputFlowfile, SUCCESS);
+            } catch (Exception e) {
+                session.transfer(flowfile, error.get());
             }
         }
     }
@@ -139,7 +138,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
                                   FlowFile flowfile,
                                   String messageType,
                                   String demarcator,
-                                  boolean preserveFieldNames) {
+                                  boolean preserveFieldNames) throws Exception {
         return session.write(flowfile, (in, out) -> {
             try {
                 byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
@@ -159,6 +158,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
             } catch (Exception e) {
                 getLogger().error("encountered error while processing batch:", e);
                 error.set(ERROR);
+                throw new RuntimeException(e);
             }
         });
     }
@@ -174,17 +174,22 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
             } catch (DescriptorValidationException e) {
                 getLogger().error("Invalid schema file: " + e.getMessage(), e);
                 error.set(INVALID_SCHEMA);
+                throw new RuntimeException(e);
             } catch (SchemaLoadingException | SchemaCompilationException e) {
                 getLogger().error(e.getMessage(), e);
                 error.set(INVALID_SCHEMA);
+                throw new RuntimeException(e);
             } catch (UnknownMessageTypeException | MessageDecodingException e) {
                 getLogger().error(e.getMessage());
                 error.set(ERROR);
+                throw new RuntimeException(e);
             } catch (InvalidProtocolBufferException e) {
                 getLogger().error("Unable to encode message into JSON: " + e.getMessage(), e);
                 error.set(ERROR);
+                throw new RuntimeException(e);
             } catch (InterruptedException e) {
                 e.printStackTrace();
+                throw new RuntimeException(e);
             }
         });
     }

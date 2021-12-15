@@ -38,6 +38,7 @@ import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
+import org.apache.nifi.processor.exception.FlowFileAccessException;
 import org.apache.nifi.processor.exception.ProcessException;
 
 import java.io.InputStream;
@@ -77,34 +78,38 @@ public class EncodeProtobuf extends AbstractProtobufProcessor {
             session.transfer(flowfile, ERROR);
         } else {
 
-            FlowFile outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
-                try {
-                    // If the protobufSchema property is defined, we use the schema from the flowfile instead of the
-                    // processor-wide one
-                    if (protobufSchema == null) {
-                        ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
-                    } else {
-                        ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
+            FlowFile outputFlowfile = null;
+            try {
+                outputFlowfile = session.write(flowfile, (InputStream in, OutputStream out) -> {
+                    try {
+                        // If the protobufSchema property is defined, we use the schema from the flowfile instead of the
+                        // processor-wide one
+                        if (protobufSchema == null) {
+                            ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+                        } else {
+                            ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
+                        }
+                    } catch (Descriptors.DescriptorValidationException e) {
+                        getLogger().error("Invalid schema file: " + e.getMessage(), e);
+                        error.set(INVALID_SCHEMA);
+                        throw new RuntimeException(e);
+                    } catch (SchemaLoadingException | SchemaCompilationException e) {
+                        getLogger().error(e.getMessage(), e);
+                        error.set(INVALID_SCHEMA);
+                        throw new RuntimeException(e);
+                    } catch (InterruptedException e) {
+                        getLogger().error("Unable to compile schema: " + e.getMessage(), e);
+                        error.set(ERROR);
+                        throw new RuntimeException(e);
+                    } catch (Exception e) {
+                        getLogger().error(e.getMessage(), e);
+                        error.set(ERROR);
+                        throw new RuntimeException(e);
                     }
-                } catch (Descriptors.DescriptorValidationException e) {
-                    getLogger().error("Invalid schema file: " + e.getMessage(), e);
-                    error.set(INVALID_SCHEMA);
-                } catch (SchemaLoadingException | SchemaCompilationException e) {
-                    getLogger().error(e.getMessage(), e);
-                    error.set(INVALID_SCHEMA);
-                } catch (InterruptedException e) {
-                    getLogger().error("Unable to compile schema: " + e.getMessage(), e);
-                    error.set(ERROR);
-                } catch (Exception e) {
-                    getLogger().error(e.getMessage(), e);
-                    error.set(ERROR);
-                }
-            });
-
-            if (error.get() != null) {
-                session.transfer(flowfile, error.get());
-            } else {
+                });
                 session.transfer(outputFlowfile, SUCCESS);
+            } catch (RuntimeException e) {
+                session.transfer(flowfile, error.get());
             }
         }
     }
