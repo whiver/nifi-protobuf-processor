@@ -26,7 +26,6 @@
 
 package com.github.whiver.nifi.processor;
 
-import com.apple.foundationdb.tuple.ByteArrayUtil;
 import com.github.whiver.nifi.exception.MessageDecodingException;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
@@ -42,17 +41,18 @@ import org.apache.nifi.components.Validator;
 import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
+import org.apache.nifi.processor.DataUnit;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.apache.nifi.stream.io.util.StreamDemarcator;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -85,6 +85,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
     public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         List<PropertyDescriptor> list = new LinkedList<>(super.getSupportedPropertyDescriptors());
         list.add(DEMARCATOR);
+        list.add(MAX_MESSAGE_SIZE);
         list.add(PRESERVE_FIELD_NAMES);
         return list;
     }
@@ -104,6 +105,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 
         String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
+        int maxDataSize = processContext.getProperty(MAX_MESSAGE_SIZE).evaluateAttributeExpressions().asDataSize(DataUnit.B).intValue();
         final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
         final boolean preserveFieldNames = processContext.getProperty(PRESERVE_FIELD_NAMES).evaluateAttributeExpressions(flowfile).asBoolean();
 
@@ -123,7 +125,7 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
                 if (demarcator == null || demarcator.isEmpty()) {
                     outputFlowfile = processSingleFlowFile(session, error, flowfile, messageType, preserveFieldNames);
                 } else {
-                    outputFlowfile = processBatch(session, error, flowfile, messageType, demarcator, preserveFieldNames);
+                    outputFlowfile = processBatch(session, error, flowfile, messageType, demarcator, preserveFieldNames, maxDataSize);
                 }
                 outputFlowfile = session.putAttribute(outputFlowfile, CoreAttributes.MIME_TYPE.key(), "application/json");
                 session.transfer(outputFlowfile, SUCCESS);
@@ -138,19 +140,18 @@ public class DecodeProtobuf extends AbstractProtobufProcessor {
                                   FlowFile flowfile,
                                   String messageType,
                                   String demarcator,
-                                  boolean preserveFieldNames) throws Exception {
+                                  boolean preserveFieldNames,
+                                  int maxDataSize) throws Exception {
         return session.write(flowfile, (in, out) -> {
             try {
                 byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
-                byte[] batch = new byte[(int) flowfile.getSize()];
-                in.read(batch);
-                in.close();
-                List<byte[]> messages = ByteArrayUtil.split(batch, demarcatorBytes);
+                StreamDemarcator streamDemarcator = new StreamDemarcator(in, demarcatorBytes, maxDataSize);
                 out.write('[');
-                Iterator<byte[]> iterator = messages.iterator();
-                while (iterator.hasNext()) {
-                    processMessage(messageType, preserveFieldNames, iterator.next(), out);
-                    if (iterator.hasNext()) {
+                byte[] message = streamDemarcator.nextToken();
+                while (message != null) {
+                    processMessage(messageType, preserveFieldNames, message, out);
+                    message = streamDemarcator.nextToken();
+                    if (message != null) {
                         out.write(',');
                     }
                 }

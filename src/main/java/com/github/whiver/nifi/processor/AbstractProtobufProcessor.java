@@ -108,6 +108,16 @@ public abstract class AbstractProtobufProcessor extends AbstractProcessor {
             .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
             .build();
 
+    static final PropertyDescriptor MAX_MESSAGE_SIZE = new PropertyDescriptor.Builder()
+            .name("max_message_size")
+            .displayName("Max Message Size")
+            .required(true)
+            .description("Maximum size of a single message when using a demarcator.")
+            .defaultValue("1 MB")
+            .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
+            .addValidator(StandardValidators.DATA_SIZE_VALIDATOR)
+            .build();
+
 
     /*          RELATIONSHIPS           */
 

@@ -26,7 +26,6 @@
 
 package com.github.whiver.nifi.processor;
 
-import com.apple.foundationdb.tuple.ByteArrayUtil;
 import com.google.protobuf.DynamicMessage;
 import org.apache.avro.Schema;
 import org.apache.avro.file.DataFileWriter;
@@ -42,11 +41,13 @@ import org.apache.nifi.components.Validator;
 import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
+import org.apache.nifi.processor.DataUnit;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
+import org.apache.nifi.stream.io.util.StreamDemarcator;
 
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
@@ -92,6 +93,7 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
         list.add(DEMARCATOR);
         list.remove(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE);
         list.add(PROTOBUF_MESSAGE_TYPE);
+        list.add(MAX_MESSAGE_SIZE);
         return list;
     }
 
@@ -115,7 +117,7 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
         }
 
         String demarcator = processContext.getProperty(DEMARCATOR).evaluateAttributeExpressions(flowfile).getValue();
-
+        int maxMessageSize = processContext.getProperty(MAX_MESSAGE_SIZE).evaluateAttributeExpressions().asDataSize(DataUnit.B).intValue();
         String protobufSchema = flowfile.getAttribute(PROTOBUF_SCHEMA.getName());
 
         if (protobufSchema == null && this.schema == null) {
@@ -126,7 +128,7 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
 
             // Write the results back out ot flow file
             FlowFile outputFlowfile;
-            outputFlowfile = processBatch(session, error, flowfile, demarcator);
+            outputFlowfile = processBatch(session, error, flowfile, demarcator, maxMessageSize);
 
             if (error.get() != null) {
                 session.transfer(flowfile, error.get());
@@ -140,18 +142,16 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
     private FlowFile processBatch(ProcessSession session,
                                   AtomicReference<Relationship> error,
                                   FlowFile flowfile,
-                                  String demarcator) {
+                                  String demarcator,
+                                  int maxMessageSize) {
         return session.write(flowfile, (in, out) -> {
             try {
                 byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
-                byte[] batch = new byte[(int) flowfile.getSize()];
-                in.read(batch);
-                in.close();
-                List<byte[]> messages = ByteArrayUtil.split(batch, demarcatorBytes);
+                StreamDemarcator streamDemarcator = new StreamDemarcator(in, demarcatorBytes, maxMessageSize);
                 dataFileWriter = new DataFileWriter<>(datumWriter);
                 dataFileWriter.create(avroSchema, out);
-
-                for (byte[] message : messages) {
+                byte[] message;
+                while ((message = streamDemarcator.nextToken()) != null) {
                     DynamicMessage dynamicMessage = DynamicMessage.parseFrom(this.schema.getMessageDescriptor(messageType), message);
                     dataFileWriter.append(dynamicMessage);
                 }
