@@ -37,6 +37,7 @@ import org.apache.nifi.annotation.behavior.ReadsAttributes;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.components.Validator;
 import org.apache.nifi.expression.ExpressionLanguageScope;
 import org.apache.nifi.processor.AbstractProcessor;
 import org.apache.nifi.processor.ProcessContext;
@@ -84,6 +85,15 @@ public abstract class AbstractProtobufProcessor extends AbstractProcessor {
                     "be used when the flowfile protobuf.schemaPath is missing.")
             .expressionLanguageSupported(ExpressionLanguageScope.VARIABLE_REGISTRY)
             .addValidator(StandardValidators.createURLorFileValidator())
+            .build();
+
+    static final PropertyDescriptor DEMARCATOR = new PropertyDescriptor.Builder()
+            .name("demarcator")
+            .displayName("Demarcator")
+            .required(false)
+            .description("This property is used to produce/consume messages separated by a demarcator")
+            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
+            .addValidator(Validator.VALID)
             .build();
 
     static final PropertyDescriptor PROTOBUF_MESSAGE_TYPE = new PropertyDescriptor.Builder()

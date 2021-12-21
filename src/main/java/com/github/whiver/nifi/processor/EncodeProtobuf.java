@@ -27,27 +27,50 @@
 package com.github.whiver.nifi.processor;
 
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonToken;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.github.whiver.nifi.exception.MessageEncodingException;
 import com.github.whiver.nifi.exception.SchemaCompilationException;
 import com.github.whiver.nifi.exception.SchemaLoadingException;
+import com.github.whiver.nifi.exception.UnknownMessageTypeException;
 import com.github.whiver.nifi.service.ProtobufService;
 import com.google.protobuf.Descriptors;
 import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
+import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.processor.ProcessContext;
 import org.apache.nifi.processor.ProcessSession;
 import org.apache.nifi.processor.Relationship;
 import org.apache.nifi.processor.exception.ProcessException;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SideEffectFree
 @SeeAlso(DecodeProtobuf.class)
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
 public class EncodeProtobuf extends AbstractProtobufProcessor {
+    private static final JsonFactory jsonFactory = new JsonFactory();
+
+    @Override
+    public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
+        List<PropertyDescriptor> list = new LinkedList<>(super.getSupportedPropertyDescriptors());
+        list.add(DEMARCATOR);
+        return list;
+    }
 
     @Override
     public void onTrigger(ProcessContext processContext, ProcessSession session) throws ProcessException {
@@ -66,6 +89,7 @@ public class EncodeProtobuf extends AbstractProtobufProcessor {
 
         String messageTypeValue = flowfile.getAttribute(PROTOBUF_MESSAGE_TYPE.getName());
         final String messageType = messageTypeValue != null ? messageTypeValue : processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions(flowfile).getValue();
+        String demarcator = processContext.getProperty(DEMARCATOR).evaluateAttributeExpressions(flowfile).getValue();
 
 
         if (protobufSchema == null && this.schema == null) {
@@ -83,10 +107,24 @@ public class EncodeProtobuf extends AbstractProtobufProcessor {
                     try {
                         // If the protobufSchema property is defined, we use the schema from the flowfile instead of the
                         // processor-wide one
-                        if (protobufSchema == null) {
-                            ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+
+                        if (demarcator != null) {
+                            byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
+                            JsonParser parser = jsonFactory.createParser(in);
+                            ObjectMapper mapper = new ObjectMapper(jsonFactory);
+                            if (parser.nextToken() != JsonToken.START_ARRAY) {
+                                parseOneObject(protobufSchema, compileSchema, messageType, in, out);
+                            }
+                            parser.nextToken();
+                            while (parser.currentToken() == JsonToken.START_OBJECT) {
+                                ProtobufService.encodeProtobuf(this.schema, messageType,
+                                        new ByteArrayInputStream(mapper.readTree(parser).toString().getBytes()), out);
+                                if (parser.nextToken() == JsonToken.START_OBJECT) {
+                                    out.write(demarcatorBytes);
+                                }
+                            }
                         } else {
-                            ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
+                            parseOneObject(protobufSchema, compileSchema, messageType, in, out);
                         }
                     } catch (Descriptors.DescriptorValidationException e) {
                         getLogger().error("Invalid schema file: " + e.getMessage(), e);
@@ -110,6 +148,14 @@ public class EncodeProtobuf extends AbstractProtobufProcessor {
             } catch (RuntimeException e) {
                 session.transfer(flowfile, error.get());
             }
+        }
+    }
+
+    private void parseOneObject(String protobufSchema, boolean compileSchema, String messageType, InputStream in, OutputStream out) throws Descriptors.DescriptorValidationException, IOException, MessageEncodingException, UnknownMessageTypeException, SchemaLoadingException, SchemaCompilationException, InterruptedException {
+        if (protobufSchema == null) {
+            ProtobufService.encodeProtobuf(this.schema, messageType, in, out);
+        } else {
+            ProtobufService.encodeProtobuf(protobufSchema, compileSchema, messageType, in, out);
         }
     }
 }

@@ -62,14 +62,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @SeeAlso(EncodeProtobuf.class)
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema.")
 public class DecodeProtobuf extends AbstractProtobufProcessor {
-    static final PropertyDescriptor DEMARCATOR = new PropertyDescriptor.Builder()
-            .name("demarcator")
-            .displayName("Demarcator")
-            .required(false)
-            .description("This property is used to consume messages separated by a demarcator")
-            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
-            .addValidator(Validator.VALID)
-            .build();
 
     static final PropertyDescriptor PRESERVE_FIELD_NAMES = new PropertyDescriptor.Builder()
             .name("preserve_field_names")

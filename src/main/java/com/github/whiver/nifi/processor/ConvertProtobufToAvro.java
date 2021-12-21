@@ -65,15 +65,6 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
     private DatumWriter<DynamicMessage> datumWriter;
     private DataFileWriter<DynamicMessage> dataFileWriter;
 
-    static final PropertyDescriptor DEMARCATOR = new PropertyDescriptor.Builder()
-            .name("demarcator")
-            .displayName("Demarcator")
-            .required(false)
-            .description("This property is used to consume/produce messages separated by a demarcator")
-            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
-            .addValidator(Validator.VALID)
-            .build();
-
     static final PropertyDescriptor PROTOBUF_MESSAGE_TYPE = new PropertyDescriptor.Builder()
             .name("protobuf.messageType")
             .displayName("Message Type")
