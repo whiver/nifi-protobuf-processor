@@ -119,13 +119,12 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
 
             // Write the results back out ot flow file
             FlowFile outputFlowfile;
-            outputFlowfile = processBatch(session, error, flowfile, demarcator, maxMessageSize);
-
-            if (error.get() != null) {
-                session.transfer(flowfile, error.get());
-            } else {
+            try {
+                outputFlowfile = processBatch(session, error, flowfile, demarcator, maxMessageSize);
                 outputFlowfile = session.putAttribute(outputFlowfile, CoreAttributes.MIME_TYPE.key(), "application/avro-binary");
                 session.transfer(outputFlowfile, SUCCESS);
+            } catch (RuntimeException e) {
+                session.transfer(flowfile, error.get());
             }
         }
     }
@@ -151,6 +150,7 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
             } catch (Exception e) {
                 getLogger().error("encountered error while processing batch:", e);
                 error.set(ERROR);
+                throw new RuntimeException(e);
             }
         });
     }
