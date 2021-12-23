@@ -36,6 +36,7 @@ import org.apache.nifi.annotation.behavior.SideEffectFree;
 import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.SeeAlso;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
+import org.apache.nifi.annotation.lifecycle.OnUnscheduled;
 import org.apache.nifi.components.PropertyDescriptor;
 import org.apache.nifi.components.Validator;
 import org.apache.nifi.expression.ExpressionLanguageScope;
@@ -63,7 +64,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema and converts into Avro.")
 public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
     private DatumWriter<DynamicMessage> datumWriter;
-    private DataFileWriter<DynamicMessage> dataFileWriter;
 
     static final PropertyDescriptor PROTOBUF_MESSAGE_TYPE = new PropertyDescriptor.Builder()
             .name("protobuf.messageType")
@@ -75,14 +75,25 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
             .addValidator(StandardValidators.NON_BLANK_VALIDATOR)
             .build();
 
+    static final PropertyDescriptor DEMARCATOR = new PropertyDescriptor.Builder()
+            .name("demarcator")
+            .displayName("Demarcator")
+            .required(true)
+            .defaultValue("|||")
+            .description("This property is used to produce/consume messages separated by a demarcator")
+            .expressionLanguageSupported(ExpressionLanguageScope.FLOWFILE_ATTRIBUTES)
+            .addValidator(Validator.VALID)
+            .build();
+
     protected Schema avroSchema;
     protected String messageType;
 
     @Override
     public List<PropertyDescriptor> getSupportedPropertyDescriptors() {
         List<PropertyDescriptor> list = new LinkedList<>(super.getSupportedPropertyDescriptors());
-        list.add(DEMARCATOR);
         list.remove(AbstractProtobufProcessor.PROTOBUF_MESSAGE_TYPE);
+        list.remove(AbstractProtobufProcessor.DEMARCATOR);
+        list.add(DEMARCATOR);
         list.add(PROTOBUF_MESSAGE_TYPE);
         list.add(MAX_MESSAGE_SIZE);
         return list;
@@ -95,6 +106,13 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
         messageType = processContext.getProperty(PROTOBUF_MESSAGE_TYPE).evaluateAttributeExpressions().getValue();
         avroSchema = ProtobufData.get().getSchema(this.schema.getMessageDescriptor(messageType));
         datumWriter = new ProtobufDatumWriter<>(avroSchema);
+    }
+
+    @OnUnscheduled
+    public void dismissSchema() {
+        messageType = null;
+        avroSchema = null;
+        datumWriter = null;
     }
 
     @Override
@@ -138,13 +156,14 @@ public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
             try {
                 byte[] demarcatorBytes = demarcator.getBytes(StandardCharsets.UTF_8);
                 StreamDemarcator streamDemarcator = new StreamDemarcator(in, demarcatorBytes, maxMessageSize);
-                dataFileWriter = new DataFileWriter<>(datumWriter);
+                DataFileWriter<DynamicMessage> dataFileWriter = new DataFileWriter<>(datumWriter);
                 dataFileWriter.create(avroSchema, out);
                 byte[] message;
                 while ((message = streamDemarcator.nextToken()) != null) {
                     DynamicMessage dynamicMessage = DynamicMessage.parseFrom(this.schema.getMessageDescriptor(messageType), message);
                     dataFileWriter.append(dynamicMessage);
                 }
+                dataFileWriter.flush();
                 dataFileWriter.close();
 
             } catch (Exception e) {
