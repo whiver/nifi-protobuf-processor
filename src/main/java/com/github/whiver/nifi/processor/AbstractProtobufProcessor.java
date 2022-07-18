@@ -73,7 +73,7 @@ public abstract class AbstractProtobufProcessor extends AbstractProcessor {
      * The compiled descriptor used to parse incoming binaries in case where the schema has been specified in the
      * processor level (protobuf.schema property)
      */
-    protected DynamicSchema schema = null;
+    protected static DynamicSchema schema = null;
 
     /*          PROPERTIES          */
 

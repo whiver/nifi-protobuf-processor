@@ -1,3 +1,4 @@
 com.github.whiver.nifi.processor.DecodeProtobuf
 com.github.whiver.nifi.processor.EncodeProtobuf
 com.github.whiver.nifi.processor.ConvertProtobufToAvro
+com.github.whiver.nifi.processor.ConvertAvroToProtobuf
