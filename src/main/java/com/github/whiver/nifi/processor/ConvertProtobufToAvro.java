@@ -59,7 +59,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * Processor to convert protobuf format to avro
  */
 @SideEffectFree
-@SeeAlso(value = {EncodeProtobuf.class, DecodeProtobuf.class, ConvertAvroToProtobuf.class})
+@SeeAlso(value = {EncodeProtobuf.class, DecodeProtobuf.class, ConvertRecordToProtobuf.class})
 @CapabilityDescription("Decodes incoming data using a Google Protocol Buffer Schema and converts into Avro.")
 public class ConvertProtobufToAvro extends AbstractProtobufProcessor {
     private DatumWriter<DynamicMessage> datumWriter;
