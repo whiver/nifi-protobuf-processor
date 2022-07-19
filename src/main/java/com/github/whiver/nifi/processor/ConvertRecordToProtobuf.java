@@ -51,6 +51,8 @@ import org.apache.nifi.serialization.record.Record;
 import org.apache.nifi.serialization.record.RecordField;
 import org.apache.nifi.serialization.record.RecordFieldType;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
@@ -160,7 +162,7 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
                 Record record;
                 boolean firstTime = true;
                 while ((record = reader.nextRecord()) != null) {
-                    if (!firstTime) {
+                    if (!firstTime) { // add demarcator
                         out.write(demarcatorBytes);
                     }
                     firstTime = false;
@@ -176,6 +178,12 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         });
     }
 
+    /**
+     * Builds a protobuf DynamicMessage using a NiFi {@link Record}
+     * @param messageDescriptor the message descriptor
+     * @param record the record
+     * @return a {@link DynamicMessage}
+     */
     private DynamicMessage recordDataToDynamicMessage(Descriptors.Descriptor messageDescriptor, Record record) {
         DynamicMessage.Builder dynamicMessage = DynamicMessage
                 .newBuilder(messageDescriptor);
@@ -206,6 +214,7 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         return dynamicMessage.build();
     }
 
+    @Nonnull
     private Message buildMessage(MapRecord mapRecord, Descriptors.FieldDescriptor field) {
         DynamicMessage.Builder message = DynamicMessage.newBuilder(field.getMessageType());
         for (Descriptors.FieldDescriptor fieldDescriptor : field.getMessageType().getFields()) {
@@ -222,10 +231,30 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         return message.build();
     }
 
+    /**
+     * Attempts to extract the value with different formats for the name(UpperCamelCase, lowerCamelCase, lower_underscore).
+     * The function will try every format until it yields a non-null result.
+     * Then, returns the value.
+     * @param extractValue the function to attempt to extract the value
+     * @param fieldName the original field name
+     * @return the value(if successful, should not be null)
+     */
+    @Nullable
     private Object attemptToExtractWithDifferentNames(Function<String, Object> extractValue, String fieldName) {
         return attemptToExtractWithDifferentNames(extractValue, fieldName, null);
     }
 
+    /**
+     * Attempts to extract the value with different formats for the name(UpperCamelCase, lowerCamelCase, lower_underscore).
+     * The function will try every format until it yields a non-null result.
+     * Then, returns the value.
+     * @param extractValue the function to attempt to extract the value
+     * @param fieldName the original field name
+     * @param finalName an atomic reference to hold the last field name attempt. If the function succeeded,
+     *                  it will hold the name used to extract the value.
+     * @return the value(if successful, should not be null)
+     */
+    @Nullable
     private Object attemptToExtractWithDifferentNames(Function<String, Object> extractValue, String fieldName,
                                                       AtomicReference<String> finalName) {
         Object value = extractValue.apply(fieldName);
@@ -269,6 +298,13 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         return value;
     }
 
+    /**
+     * Get value according to target type. It checks what kind of type it should be and converts accordingly.
+     * @param record the nifi {@link Record}
+     * @param fieldName the field name
+     * @param fieldDescriptor the field descriptor
+     * @return the value
+     */
     private Object getValue(Record record, String fieldName, Descriptors.FieldDescriptor fieldDescriptor) {
         switch (fieldDescriptor.getJavaType()) {
             case DOUBLE:
