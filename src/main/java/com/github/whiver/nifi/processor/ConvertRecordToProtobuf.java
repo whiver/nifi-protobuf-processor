@@ -46,6 +46,7 @@ import org.apache.nifi.processor.exception.ProcessException;
 import org.apache.nifi.processor.util.StandardValidators;
 import org.apache.nifi.serialization.RecordReader;
 import org.apache.nifi.serialization.RecordReaderFactory;
+import org.apache.nifi.serialization.SimpleRecordSchema;
 import org.apache.nifi.serialization.record.MapRecord;
 import org.apache.nifi.serialization.record.Record;
 import org.apache.nifi.serialization.record.RecordField;
@@ -54,6 +55,8 @@ import org.apache.nifi.serialization.record.RecordFieldType;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -180,8 +183,9 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
 
     /**
      * Builds a protobuf DynamicMessage using a NiFi {@link Record}
+     *
      * @param messageDescriptor the message descriptor
-     * @param record the record
+     * @param record            the record
      * @return a {@link DynamicMessage}
      */
     private DynamicMessage recordDataToDynamicMessage(Descriptors.Descriptor messageDescriptor, Record record) {
@@ -190,21 +194,13 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         for (Descriptors.FieldDescriptor field : messageDescriptor.getFields()) {
             String fieldName = field.getName();
             getLogger().debug("attempting to extract value for field {}", fieldName);
-            Object value = attemptToExtractWithDifferentNames((name) -> getValue(record, name, field), fieldName);
+            AtomicReference<String> nameRepresentedByRecord = new AtomicReference<>();
+            Object value = attemptToExtractWithDifferentNames((name) -> getValue(record, name, field), fieldName, nameRepresentedByRecord);
             if (value != null) {
                 if (field.getType().equals(Descriptors.FieldDescriptor.Type.ENUM)) {
-                    getLogger().debug("encountered enum for {}", fieldName);
-                    if (value instanceof Number) {
-                        getLogger().debug("value is number for {}, will convert to enum", fieldName);
-                        dynamicMessage.setField(field, field.getEnumType()
-                                .findValueByNumber(((Number) value).intValue()));
-                    } else {
-                        dynamicMessage.setField(field, field.getEnumType()
-                                .findValueByName(value.toString()));
-                    }
+                    setFieldForEnum(dynamicMessage, field, fieldName, value);
                 } else if (field.getType().equals(Descriptors.FieldDescriptor.Type.MESSAGE)) {
-                    // MESSAGE type is represented as MapRecord by NiFi
-                    dynamicMessage.setField(field, buildMessage((MapRecord) value, field));
+                    handleMessageType(record, dynamicMessage, field, fieldName, value, nameRepresentedByRecord);
                 } else {
                     getLogger().debug("setting value {} for {}", value, fieldName);
                     dynamicMessage.setField(field, value);
@@ -214,15 +210,67 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
         return dynamicMessage.build();
     }
 
+    private void handleMessageType(Record record, DynamicMessage.Builder dynamicMessage,
+                                   Descriptors.FieldDescriptor field,
+                                   String fieldName, Object value, AtomicReference<String> nameRepresentedByRecord) {
+        // MESSAGE type is represented as MapRecord by NiFi
+        if (value instanceof MapRecord) {
+            dynamicMessage.setField(field, buildMessage((MapRecord) value, field));
+        } else if (field.getMessageType().getFields().size() == 1) {
+            // Since the NiFi record is not recognizing this field as a MESSAGE field but the flat out field,
+            // and since the MESSAGE has only one field, it is possible to address this one field as the intended field
+            // by the NiFi record.
+            handleSingleFieldMessageField(record, dynamicMessage, field, nameRepresentedByRecord);
+        } else {
+            throw new IllegalStateException("Field " + fieldName + " should be of type MESSAGE but is not!");
+        }
+    }
+
+    private void handleSingleFieldMessageField(Record record,
+                                               DynamicMessage.Builder dynamicMessage,
+                                               Descriptors.FieldDescriptor field,
+                                               AtomicReference<String> nameRepresentedByRecord) {
+        Object value;
+        Descriptors.FieldDescriptor innerField = field.getMessageType().getFields().get(0);
+        String innerFieldName = innerField.getName();
+        Optional<RecordField> currentRecordField = record
+                .getSchema()
+                .getField(nameRepresentedByRecord.get());
+        if (currentRecordField.isPresent()) {
+            value = getValue(record, nameRepresentedByRecord.get(), innerField);
+            HashMap<String, Object> map = new HashMap<>();
+            map.put(innerFieldName, value);
+            MapRecord mapRecord =
+                    new MapRecord(new SimpleRecordSchema(Collections.singletonList(currentRecordField.get())),
+                            map);
+            dynamicMessage.setField(field, buildMessage(mapRecord, field));
+        } else {
+            throw new IllegalStateException("Field value was extracted but field doesn't exist!");
+        }
+    }
+
+    private void setFieldForEnum(DynamicMessage.Builder dynamicMessage, Descriptors.FieldDescriptor field, String fieldName, Object value) {
+        getLogger().debug("encountered enum for {}", fieldName);
+        if (value instanceof Number) {
+            getLogger().debug("value is number for {}, will convert to enum", fieldName);
+            dynamicMessage.setField(field, field.getEnumType()
+                    .findValueByNumber(((Number) value).intValue()));
+        } else {
+            dynamicMessage.setField(field, field.getEnumType()
+                    .findValueByName(value.toString()));
+        }
+    }
+
     @Nonnull
     private Message buildMessage(MapRecord mapRecord, Descriptors.FieldDescriptor field) {
         DynamicMessage.Builder message = DynamicMessage.newBuilder(field.getMessageType());
         for (Descriptors.FieldDescriptor fieldDescriptor : field.getMessageType().getFields()) {
             AtomicReference<String> name = new AtomicReference<>();
-            Object value = attemptToExtractWithDifferentNames(mapRecord::getValue, fieldDescriptor.getName(), name);
+            Object value = attemptToExtractWithDifferentNames(currentFieldName -> getValue(mapRecord, currentFieldName, fieldDescriptor),
+                    fieldDescriptor.getName(), name);
             if (value != null) {
                 if (fieldDescriptor.getJavaType().equals(Descriptors.FieldDescriptor.JavaType.MESSAGE)) {
-                    value = buildMessage((MapRecord)value, fieldDescriptor);
+                    value = buildMessage((MapRecord) value, fieldDescriptor);
                 }
                 message.setField(fieldDescriptor, value);
             }
@@ -235,12 +283,13 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
      * Attempts to extract the value with different formats for the name(UpperCamelCase, lowerCamelCase, lower_underscore).
      * The function will try every format until it yields a non-null result.
      * Then, returns the value.
+     *
      * @param extractValue the function to attempt to extract the value
-     * @param fieldName the original field name
+     * @param fieldName    the original field name
      * @return the value(if successful, should not be null)
      */
     @Nullable
-    private Object attemptToExtractWithDifferentNames(Function<String, Object> extractValue, String fieldName) {
+    private <T> T attemptToExtractWithDifferentNames(Function<String, T> extractValue, String fieldName) {
         return attemptToExtractWithDifferentNames(extractValue, fieldName, null);
     }
 
@@ -248,16 +297,17 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
      * Attempts to extract the value with different formats for the name(UpperCamelCase, lowerCamelCase, lower_underscore).
      * The function will try every format until it yields a non-null result.
      * Then, returns the value.
+     *
      * @param extractValue the function to attempt to extract the value
-     * @param fieldName the original field name
-     * @param finalName an atomic reference to hold the last field name attempt. If the function succeeded,
-     *                  it will hold the name used to extract the value.
+     * @param fieldName    the original field name
+     * @param finalName    an atomic reference to hold the last field name attempt. If the function succeeded,
+     *                     it will hold the name used to extract the value.
      * @return the value(if successful, should not be null)
      */
     @Nullable
-    private Object attemptToExtractWithDifferentNames(Function<String, Object> extractValue, String fieldName,
-                                                      AtomicReference<String> finalName) {
-        Object value = extractValue.apply(fieldName);
+    private <T> T attemptToExtractWithDifferentNames(Function<String, T> extractValue, String fieldName,
+                                                     AtomicReference<String> finalName) {
+        T value = extractValue.apply(fieldName);
         String originalFieldName = fieldName;
 
         if (value == null) {
@@ -300,8 +350,9 @@ public class ConvertRecordToProtobuf extends AbstractProtobufProcessor {
 
     /**
      * Get value according to target type. It checks what kind of type it should be and converts accordingly.
-     * @param record the nifi {@link Record}
-     * @param fieldName the field name
+     *
+     * @param record          the nifi {@link Record}
+     * @param fieldName       the field name
      * @param fieldDescriptor the field descriptor
      * @return the value
      */
