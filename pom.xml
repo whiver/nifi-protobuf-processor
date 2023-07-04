@@ -20,24 +20,24 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.7</maven.compiler.source>
         <maven.compiler.target>1.7</maven.compiler.target>
-        <nifi.version>1.4.0</nifi.version>
+        <nifi.version>1.16.3</nifi.version>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java</artifactId>
-            <version>3.5.0</version>
+            <version>3.9.0</version>
         </dependency>
         <dependency>
             <groupId>com.github.os72</groupId>
             <artifactId>protobuf-dynamic</artifactId>
-            <version>0.9.3</version>
+            <version>1.0.0</version>
         </dependency>
         <dependency>
             <groupId>com.google.protobuf</groupId>
             <artifactId>protobuf-java-util</artifactId>
-            <version>3.5.0</version>
+            <version>3.9.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.nifi</groupId>
@@ -52,7 +52,7 @@
         <dependency>
             <groupId>org.apache.nifi</groupId>
             <artifactId>nifi-processor-utils</artifactId>
-            <version>${nifi.version}</version>
+            <version>1.15.3</version>
         </dependency>
         <dependency>
             <groupId>org.apache.nifi</groupId>
@@ -67,9 +67,35 @@
             <scope>test</scope>
         </dependency>
         <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-record-serialization-service-api</artifactId>
+            <version>${nifi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-record</artifactId>
+            <version>${nifi.version}</version>
+        </dependency>
+        <dependency>
             <groupId>com.github.os72</groupId>
             <artifactId>protoc-jar</artifactId>
             <version>3.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro-protobuf</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.avro</groupId>
+            <artifactId>avro</artifactId>
+            <version>1.11.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.nifi</groupId>
+            <artifactId>nifi-standard-services-api-nar</artifactId>
+            <version>${nifi.version}</version>
+            <type>nar</type>
         </dependency>
     </dependencies>
 
@@ -78,7 +104,7 @@
             <plugin>
                 <groupId>org.apache.nifi</groupId>
                 <artifactId>nifi-nar-maven-plugin</artifactId>
-                <version>1.2.0</version>
+                <version>1.3.1</version>
                 <extensions>true</extensions>
             </plugin>
             <plugin>
